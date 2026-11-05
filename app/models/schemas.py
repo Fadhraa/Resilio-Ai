@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
@@ -134,7 +134,7 @@ class AuditTrailStep(BaseModel):
     stage: str
     status: str
     message: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class IncidentDecisionResponse(BaseModel):
@@ -170,5 +170,5 @@ class PurchaseOrderResponse(BaseModel):
     total_amount_idr: float
     logistics_strategy: LogisticsStrategy
     approver_name: str
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     po_download_url: str
