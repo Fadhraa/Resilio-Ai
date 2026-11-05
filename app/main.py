@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 app = FastAPI(
     title="ResilioAI Test API",
@@ -31,3 +32,6 @@ def health_check():
         "database": "connected (mock)",
         "agent_status": "ready"
     }
+if __name__ == "__main__":
+
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
