@@ -76,6 +76,8 @@ class DataLayerService:
     def get_eligible_suppliers(
         self,
         category: str,
+        item_id: Optional[str] = None,
+        commodity: Optional[str] = None,
         exclude_supplier_id: Optional[str] = None,
         max_distance_km: float = 100.0,
     ) -> List[SupplierRecord]:
@@ -83,28 +85,43 @@ class DataLayerService:
         Hard-Constraint Filter untuk supplier rekanan.
         
         Kriteria Seleksi:
-        1. Kategori bahan sesuai.
-        2. Status Sertifikat Halal Wajib Aktif (Zero Tolerance).
-        3. Bukan supplier yang sedang mengalami disrupsi.
-        4. Berada dalam radius toleransi logistik maksimal (default 100 km).
+        1. Status rekanan aktif (is_active = True).
+        2. Kategori bahan sesuai.
+        3. Komoditas spesifik atau Item ID cocok (jika difilter).
+        4. Status Sertifikat Halal Wajib Aktif (Zero Tolerance / Hard-Gate).
+        5. Bukan supplier yang sedang mengalami disrupsi.
+        6. Berada dalam radius toleransi logistik maksimal (default 100 km).
         """
         eligible: List[SupplierRecord] = []
         target_cat = category.strip().upper()
 
         for supplier in self._suppliers.values():
+            # 0. Status keaktifan rekanan
+            if not getattr(supplier, "is_active", True):
+                continue
+
             # 1. Kategori bahan
             if supplier.category.strip().upper() != target_cat:
                 continue
 
-            # 2. Hard Gate: Sertifikasi Halal wajib True
+            # 2. Komoditas spesifik
+            if commodity and getattr(supplier, "commodity", None) != commodity.strip().upper():
+                continue
+
+            # 3. Item ID spesifik
+            if item_id and getattr(supplier, "supported_items", None):
+                if item_id not in supplier.supported_items:
+                    continue
+
+            # 4. Hard Gate: Sertifikasi Halal wajib True
             if not supplier.halal_certified:
                 continue
 
-            # 3. Exclude supplier terdampak insiden
+            # 5. Exclude supplier terdampak insiden
             if exclude_supplier_id and supplier.supplier_id == exclude_supplier_id:
                 continue
 
-            # 4. Batasan jarak logistik
+            # 6. Batasan jarak logistik
             if supplier.distance_km > max_distance_km:
                 continue
 

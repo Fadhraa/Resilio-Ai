@@ -68,6 +68,7 @@ def compliance_filter_node(state: ProcurementWorkflowState) -> dict:
 
     eligible = data_layer_service.get_eligible_suppliers(
         category=item.category,
+        item_id=state["item_id"],
         exclude_supplier_id=state.get("affected_supplier_id"),
         max_distance_km=100.0,
     )

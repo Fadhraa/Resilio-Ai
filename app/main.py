@@ -1,10 +1,16 @@
+from dotenv import load_dotenv
+
+# Muat variabel konfigurasi dari file .env
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from app.api.v1.router import api_router
 
 app = FastAPI(
-    title="ResilioAI Test API",
-    description="API Pengujian Deployment Backend ResilioAI untuk GTNIC 2026",
+    title="ResilioAI Engine API",
+    description="Hybrid Multi-Agent & Deterministic Pipeline for Supply Chain Resilience - SPPG GTNIC 2026",
     version="1.0.0"
 )
 
@@ -16,7 +22,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# kakka
+
+# Hubungkan API Router v1
+app.include_router(api_router, prefix="/api/v1")
+
 @app.get("/")
 def read_root():
     return {

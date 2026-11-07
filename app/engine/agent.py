@@ -20,13 +20,13 @@ class StrategicProcurementAgent:
     Bertanggung jawab:
     1. Memilih kandidat rekanan supplier optimal dari daftar yang lolos audit Halal.
     2. Menimbang kendala fisik (kapasitas freezer vs kuantitas defisit).
-    3. Merumuskan taktik pengiriman (Direct Delivery vs Split Delivery bertahap).
+    3. Merumuskan taktik pengir1iman (Direct Delivery vs Split Delivery bertahap).
     4. Menghasilkan narasi justifikasi strategis (didukung LLM Gemini bila API key aktif).
     """
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+        self.model_name = os.getenv("LLM_MODEL", "gemini-3.5-flash-lite")
 
     def synthesize_strategy(
         self,

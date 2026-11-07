@@ -54,7 +54,9 @@ class InventoryItem(BaseModel):
 class SupplierRecord(BaseModel):
     supplier_id: str = Field(..., description="ID unik supplier (misal: SUP-ALT-02)")
     supplier_name: str = Field(..., description="Nama badan usaha / rekanan supplier")
-    category: str = Field(..., description="Kategori bahan yang dipasok")
+    category: str = Field(..., description="Kategori makro bahan pangan (PROTEIN, STAPLE, VEGETABLE)")
+    commodity: str = Field(default="DAGING_AYAM", description="Komoditas spesifik (misal: DAGING_AYAM, DAGING_SAPI, TELUR_AYAM, BERAS)")
+    supported_items: List[str] = Field(default_factory=lambda: ["ITEM-AYAM-01"], description="Daftar ID bahan inventaris yang didukung supplier ini")
     halal_certified: bool = Field(..., description="Status keaktifan sertifikasi halal")
     halal_cert_number: Optional[str] = Field(None, description="Nomor registrasi sertifikat halal")
     unit_price_idr: float = Field(..., gt=0, description="Harga penawaran per kg (IDR)")
@@ -62,8 +64,39 @@ class SupplierRecord(BaseModel):
     lead_time_hours: float = Field(..., gt=0, description="Estimasi waktu pengiriman dari order ke SPPG (jam)")
     distance_km: float = Field(..., ge=0, description="Jarak logistik ke lokasi SPPG (km)")
     reliability_rating: float = Field(..., ge=0, le=100, description="Skor histori performa rekanan (0-100)")
+    is_active: bool = Field(default=True, description="Status keaktifan operasional rekanan")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SupplierCreateRequest(BaseModel):
+    """Payload kontrak untuk pendaftaran supplier baru (Onboarding Supplier)."""
+    supplier_name: str = Field(..., min_length=3, description="Nama badan usaha / rekanan")
+    category: str = Field(default="PROTEIN", description="Kategori makro: PROTEIN, STAPLE, VEGETABLE")
+    commodity: str = Field(default="DAGING_AYAM", description="Komoditas spesifik pangan")
+    supported_items: List[str] = Field(default_factory=lambda: ["ITEM-AYAM-01"], description="Item ID bahan yang dipasok")
+    halal_certified: bool = Field(..., description="Status sertifikasi Halal (wajib terverifikasi untuk SPPG)")
+    halal_cert_number: Optional[str] = Field(None, description="Nomor registrasi sertifikat Halal resmi")
+    unit_price_idr: float = Field(..., gt=0, description="Harga penawaran per satuan kg")
+    daily_capacity_kg: float = Field(..., gt=0, description="Kapasitas harian pasokan (kg)")
+    lead_time_hours: float = Field(default=3.0, gt=0, description="Estimasi durasi pengiriman tiba di SPPG (jam)")
+    distance_km: float = Field(default=15.0, ge=0, description="Jarak gudang/peternakan ke SPPG (km)")
+    reliability_rating: float = Field(default=85.0, ge=0, le=100, description="Rating performa rekam jejak")
+
+
+class SupplierUpdateRequest(BaseModel):
+    """Payload kontrak untuk pembaruan data supplier rekanan."""
+    supplier_name: Optional[str] = Field(None, description="Nama baru rekanan")
+    commodity: Optional[str] = Field(None, description="Komoditas spesifik")
+    supported_items: Optional[List[str]] = Field(None, description="Daftar item didukung")
+    halal_certified: Optional[bool] = Field(None, description="Status keaktifan halal")
+    halal_cert_number: Optional[str] = Field(None, description="Nomor sertifikat halal")
+    unit_price_idr: Optional[float] = Field(None, gt=0, description="Penyesuaian harga per kg")
+    daily_capacity_kg: Optional[float] = Field(None, gt=0, description="Penyesuaian kapasitas harian")
+    lead_time_hours: Optional[float] = Field(None, gt=0, description="Penyesuaian durasi kirim")
+    distance_km: Optional[float] = Field(None, ge=0, description="Penyesuaian jarak")
+    reliability_rating: Optional[float] = Field(None, ge=0, le=100, description="Penyesuaian rating")
+    is_active: Optional[bool] = Field(None, description="Status aktif / non-aktif rekanan (Soft Delete)")
 
 
 # ==========================================
@@ -172,3 +205,35 @@ class PurchaseOrderResponse(BaseModel):
     approver_name: str
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     po_download_url: str
+
+
+# ==========================================
+# 6. KONTRAK CONVERSATIONAL CHATBOT AGENT
+# ==========================================
+
+class ChatIntent(str, Enum):
+    REPORT_INCIDENT = "REPORT_INCIDENT"
+    REQUEST_REVISION = "REQUEST_REVISION"
+    CONFIRM_APPROVAL = "CONFIRM_APPROVAL"
+    GENERAL_INQUIRY = "GENERAL_INQUIRY"
+
+
+class ChatActionRequired(str, Enum):
+    NONE = "NONE"
+    CLARIFICATION_NEEDED = "CLARIFICATION_NEEDED"
+    APPROVAL_PENDING = "APPROVAL_PENDING"
+    COMPLETED = "COMPLETED"
+
+
+class ChatRequest(BaseModel):
+    session_id: str = Field(..., description="ID unik sesi obrolan")
+    message: str = Field(..., min_length=1, description="Pesan obrolan teks dari pengguna")
+    user_role: str = Field(default="Kepala SPPG", description="Peran pengguna dalam organisasi")
+
+
+class ChatResponse(BaseModel):
+    session_id: str
+    reply: str
+    intent: ChatIntent
+    action_required: ChatActionRequired
+    preview_data: Optional[dict] = None
