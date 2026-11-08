@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "Hybrid Multi-Agent & Deterministic Pipeline for Supply Chain Resilience - SPPG GTNIC 2026",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
