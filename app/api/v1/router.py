@@ -3,10 +3,17 @@ import json
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sse_starlette.sse import EventSourceResponse
 
 from app.engine.conversational_agent import conversational_agent
+from app.engine.tools import (
+    deactivate_supplier_tool,
+    get_supplier_detail_tool,
+    list_all_suppliers_tool,
+    register_supplier_tool,
+    update_supplier_tool,
+)
 from app.engine.workflow import build_procurement_workflow
 from app.models.schemas import (
     ApprovalAction,
@@ -17,6 +24,8 @@ from app.models.schemas import (
     IncidentTriggerRequest,
     IncidentTriggerResponse,
     PurchaseOrderResponse,
+    SupplierCreateRequest,
+    SupplierUpdateRequest,
 )
 from app.services.data_layer import data_layer_service
 from langgraph.checkpoint.memory import MemorySaver
@@ -238,4 +247,76 @@ async def stream_incident_status(incident_id: str) -> EventSourceResponse:
         }
 
     return EventSourceResponse(event_generator())
+
+
+# ==========================================
+# 4. SUPPLIER MANAGEMENT CRUD REST ENDPOINTS
+# ==========================================
+
+@api_router.get("/suppliers", summary="Katalog Seluruh Rekanan Supplier")
+def list_suppliers(
+    commodity: str = Query(None, description="Filter komoditas (misal DAGING_AYAM, DAGING_SAPI, TELUR_AYAM)"),
+    include_inactive: bool = Query(False, description="Sertakan rekanan yang non-aktif (soft-deleted)"),
+) -> list[dict]:
+    """
+    Mengambil katalog seluruh rekanan supplier yang terdaftar di SPPG.
+    Mendukung filter berdasarkan jenis komoditas dan status keaktifan.
+    """
+    return list_all_suppliers_tool(include_inactive=include_inactive, commodity=commodity)
+
+
+@api_router.get("/suppliers/{supplier_id}", summary="Detail Profil Rekanan Supplier")
+def get_supplier_detail(supplier_id: str) -> dict:
+    """Mengambil informasi detail satu rekanan supplier berdasarkan ID."""
+    result = get_supplier_detail_tool(supplier_id)
+    if result["status"] == "NOT_FOUND":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"],
+        )
+    return result["supplier"]
+
+
+@api_router.post("/suppliers", status_code=status.HTTP_201_CREATED, summary="Registrasi Rekanan Supplier Baru")
+def register_supplier(payload: SupplierCreateRequest) -> dict:
+    """
+    Mendaftarkan rekanan supplier baru dengan validasi otomatis tata kelola SPPG:
+    - Penomoran ID unik terurut otomatis (SUP-REG-XX).
+    - Verifikasi kepatuhan sertifikasi Halal (UU JPH No. 33/2014).
+    - Verifikasi batas pagu anggaran SOP per kg.
+    """
+    return register_supplier_tool(payload)
+
+
+@api_router.patch("/suppliers/{supplier_id}", summary="Pembaruan Data Rekanan Supplier")
+def update_supplier(supplier_id: str, updates: SupplierUpdateRequest) -> dict:
+    """
+    Memperbarui sebagian atribut rekanan supplier (partial update) seperti harga,
+    kapasitas harian, atau nomor sertifikat halal.
+    """
+    result = update_supplier_tool(supplier_id, updates)
+    if result["status"] == "NOT_FOUND":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"],
+        )
+    return result
+
+
+@api_router.delete("/suppliers/{supplier_id}", summary="Deaktivasi Rekanan Supplier (Soft Delete)")
+def deactivate_supplier(
+    supplier_id: str,
+    reason: str = Query("Penonaktifan administratif via REST API", description="Alasan penonaktifan rekanan"),
+) -> dict:
+    """
+    Menonaktifkan rekanan supplier (soft delete / is_active = False)
+    tanpa menghapus data fisik untuk menjaga keutuhan audit trail transaksi PO.
+    """
+    result = deactivate_supplier_tool(supplier_id, reason=reason)
+    if result["status"] == "NOT_FOUND":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["message"],
+        )
+    return result
 

@@ -1,8 +1,12 @@
 import difflib
 import re
 from typing import Any, Dict, List, Optional
-from app.data.mock_db import INVENTORY_DB, SUPPLIERS_DB
-from app.models.schemas import SupplierRecord
+from app.data.mock_db import INVENTORY_DB, SUPPLIERS_DB, save_suppliers_to_json
+from app.models.schemas import (
+    SupplierCreateRequest,
+    SupplierRecord,
+    SupplierUpdateRequest,
+)
 
 # Pemetaan sinonim domain pangan SPPG
 DOMAIN_SYNONYMS = {
@@ -140,3 +144,226 @@ def get_inventory_status_tool(item_id_or_name: str) -> Dict[str, Any]:
         "status": "NOT_FOUND",
         "suggestions": [it.item_name for it in INVENTORY_DB.values()],
     }
+
+
+# ==============================================================================
+# TOOL CRUD & GOVERNANCE GATEKEEPER SUPPLIER SPPG
+# ==============================================================================
+
+def register_supplier_tool(payload: SupplierCreateRequest) -> Dict[str, Any]:
+    """
+    Tool pendaftaran rekanan supplier baru ke basis data SPPG.
+    
+    Melakukan verifikasi tata kelola kepatuhan:
+    1. Penomoran ID unik otomatis (SUP-REG-XX).
+    2. Pengecekan pagu anggaran SOP (INVENTORY_DB).
+    3. Evaluasi sertifikasi Halal (UU JPH No. 33/2014).
+    """
+    # 1. Generate ID unik terurut
+    existing_reg_numbers = []
+    for sid in SUPPLIERS_DB.keys():
+        match = re.match(r"^SUP-REG-(\d+)$", sid)
+        if match:
+            existing_reg_numbers.append(int(match.group(1)))
+    
+    next_num = max(existing_reg_numbers, default=0) + 1
+    new_id = f"SUP-REG-{next_num:02d}"
+
+    # 2. Pengecekan Pagu Anggaran SOP (Price Governance)
+    matched_item = None
+    actual_supported_items = list(payload.supported_items)
+    comm_lower = payload.commodity.lower()
+
+    for it_id, it in INVENTORY_DB.items():
+        if comm_lower in it.item_name.lower() or comm_lower in it_id.lower():
+            if actual_supported_items == ["ITEM-AYAM-01"] and "ayam" not in comm_lower:
+                actual_supported_items = [it_id]
+            matched_item = it
+            break
+
+    if not matched_item:
+        for i_id in actual_supported_items:
+            if i_id in INVENTORY_DB:
+                matched_item = INVENTORY_DB[i_id]
+                break
+
+    if not matched_item:
+        for it in INVENTORY_DB.values():
+            if payload.commodity.lower() in it.item_name.lower() or payload.category.upper() == it.category.upper():
+                matched_item = it
+                break
+
+    exceeds_sop_ceiling = False
+    sop_max_price = matched_item.sop_max_price_per_kg if matched_item else None
+    price_warning = None
+
+    if sop_max_price and payload.unit_price_idr > sop_max_price:
+        exceeds_sop_ceiling = True
+        diff = payload.unit_price_idr - sop_max_price
+        price_warning = (
+            f"Harga penawaran (Rp {payload.unit_price_idr:,.2f}) melebihi pagu anggaran SOP "
+            f"untuk {matched_item.item_name} (Rp {sop_max_price:,.2f}) sebesar Rp {diff:,.2f} / kg."
+        )
+
+    # 3. Kepatuhan Sertifikasi Halal
+    if payload.halal_certified:
+        governance_status = "VERIFIED_ELIGIBLE"
+        halal_note = "Sertifikasi Halal Aktif terverifikasi. Rekanan memenuhi syarat prioritas mitigasi darurat SPPG."
+    else:
+        governance_status = "NON_PRIORITY_UNCERTIFIED"
+        halal_note = (
+            "PERINGATAN REGULASI: Rekanan belum bersertifikat Halal. Sesuai UU JPH No. 33/2014 & SOP SPPG, "
+            "rekanan ini TIDAK DAPAT dialokasikan untuk pengadaan darurat hingga sertifikasi dipenuhi."
+        )
+
+    # 4. Konstruksi Record dan Persistensi ke Database
+    new_supplier = SupplierRecord(
+        supplier_id=new_id,
+        supplier_name=payload.supplier_name.strip(),
+        category=payload.category.strip().upper(),
+        commodity=payload.commodity.strip().upper(),
+        supported_items=actual_supported_items,
+        halal_certified=payload.halal_certified,
+        halal_cert_number=payload.halal_cert_number.strip() if payload.halal_cert_number else None,
+        unit_price_idr=payload.unit_price_idr,
+        daily_capacity_kg=payload.daily_capacity_kg,
+        lead_time_hours=payload.lead_time_hours,
+        distance_km=payload.distance_km,
+        reliability_rating=payload.reliability_rating,
+        is_active=True,
+    )
+    SUPPLIERS_DB[new_id] = new_supplier
+    save_suppliers_to_json()
+
+    return {
+        "status": "CREATED",
+        "supplier_id": new_id,
+        "supplier": new_supplier.model_dump(),
+        "governance": {
+            "governance_status": governance_status,
+            "halal_certified": payload.halal_certified,
+            "halal_note": halal_note,
+            "exceeds_sop_ceiling": exceeds_sop_ceiling,
+            "sop_max_price_per_kg": sop_max_price,
+            "price_warning": price_warning,
+        },
+    }
+
+
+def get_supplier_detail_tool(supplier_id: str) -> Dict[str, Any]:
+    """Mengambil rincian profil lengkap satu rekanan supplier berdasarkan ID atau nama."""
+    cleaned = supplier_id.strip().upper()
+    for sid, s in SUPPLIERS_DB.items():
+        if sid.upper() == cleaned or s.supplier_name.lower() == supplier_id.strip().lower():
+            return {
+                "status": "FOUND",
+                "supplier": s.model_dump(),
+            }
+
+    return {
+        "status": "NOT_FOUND",
+        "message": f"Supplier '{supplier_id}' tidak terdaftar di basis data SPPG.",
+    }
+
+
+def update_supplier_tool(
+    supplier_id: str,
+    updates: SupplierUpdateRequest,
+) -> Dict[str, Any]:
+    """
+    Memperbarui sebagian atribut data supplier rekanan (Partial Update).
+    
+    Nilai None pada payload updates diabaikan sehingga data eksisting tetap utuh.
+    """
+    cleaned = supplier_id.strip().upper()
+    target_key = None
+    target_supplier = None
+
+    for sid, s in SUPPLIERS_DB.items():
+        if sid.upper() == cleaned or s.supplier_name.lower() == supplier_id.strip().lower():
+            target_key = sid
+            target_supplier = s
+            break
+
+    if not target_supplier:
+        return {
+            "status": "NOT_FOUND",
+            "message": f"Supplier '{supplier_id}' tidak ditemukan untuk diperbarui.",
+        }
+
+    update_dict = updates.model_dump(exclude_unset=True, exclude_none=True)
+    if not update_dict:
+        return {
+            "status": "NO_CHANGES",
+            "supplier_id": target_key,
+            "message": "Tidak ada atribut baru yang dikirimkan untuk diperbarui.",
+            "supplier": target_supplier.model_dump(),
+        }
+
+    updated_supplier = target_supplier.model_copy(update=update_dict)
+    SUPPLIERS_DB[target_key] = updated_supplier
+    save_suppliers_to_json()
+
+    return {
+        "status": "UPDATED",
+        "supplier_id": target_key,
+        "updated_fields": list(update_dict.keys()),
+        "supplier": updated_supplier.model_dump(),
+    }
+
+
+def deactivate_supplier_tool(
+    supplier_id: str,
+    reason: str = "Penonaktifan administratif oleh pimpinan SPPG",
+) -> Dict[str, Any]:
+    """
+    Menonaktifkan rekanan supplier (Soft Delete).
+    
+    Prinsip: Tidak menghapus baris dari basis data agar integritas histori PO masa lalu terjaga.
+    """
+    cleaned = supplier_id.strip().upper()
+    target_key = None
+    target_supplier = None
+
+    for sid, s in SUPPLIERS_DB.items():
+        if sid.upper() == cleaned or s.supplier_name.lower() == supplier_id.strip().lower():
+            target_key = sid
+            target_supplier = s
+            break
+
+    if not target_supplier:
+        return {
+            "status": "NOT_FOUND",
+            "message": f"Supplier '{supplier_id}' tidak ditemukan.",
+        }
+
+    updated = target_supplier.model_copy(update={"is_active": False})
+    SUPPLIERS_DB[target_key] = updated
+    save_suppliers_to_json()
+
+    return {
+        "status": "DEACTIVATED",
+        "supplier_id": target_key,
+        "supplier_name": updated.supplier_name,
+        "is_active": False,
+        "reason": reason,
+        "message": f"Supplier {updated.supplier_name} ({target_key}) berhasil dinonaktifkan (Soft Delete).",
+    }
+
+
+def list_all_suppliers_tool(
+    include_inactive: bool = False,
+    commodity: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Kueri seluruh daftar rekanan supplier dengan filter komoditas dan status keaktifan."""
+    results = []
+    target_comm = commodity.strip().upper() if commodity else None
+
+    for s in SUPPLIERS_DB.values():
+        if not include_inactive and not getattr(s, "is_active", True):
+            continue
+        if target_comm and getattr(s, "commodity", "").upper() != target_comm:
+            continue
+        results.append(s.model_dump())
+
+    return results
