@@ -43,8 +43,8 @@
     ],
     "halal_certified": true,
     "halal_cert_number": "ID32110000897650324",
-    "unit_price_idr": 38000.0,
-    "daily_capacity_kg": 120.0,
+    "unit_price_idr": 36500.0,
+    "daily_capacity_kg": 140.0,
     "lead_time_hours": 4.0,
     "distance_km": 22.0,
     "reliability_rating": 95.0,
@@ -82,7 +82,7 @@
     "lead_time_hours": 12.0,
     "distance_km": 180.0,
     "reliability_rating": 88.0,
-    "is_active": true
+    "is_active": false
   },
   "SUP-SAPI-01": {
     "supplier_id": "SUP-SAPI-01",
@@ -120,7 +120,58 @@
   },
   "SUP-REG-01": {
     "supplier_id": "SUP-REG-01",
-    "supplier_name": "CV Berkah Tahu",
+    "supplier_name": "PT Unggas Sultan Premium",
+    "category": "PROTEIN",
+    "commodity": "DAGING_AYAM",
+    "supported_items": [
+      "ITEM-AYAM-01"
+    ],
+    "halal_certified": true,
+    "halal_cert_number": "ID3211000011223344",
+    "unit_price_idr": 48000.0,
+    "daily_capacity_kg": 100.0,
+    "lead_time_hours": 2.0,
+    "distance_km": 10.0,
+    "reliability_rating": 90.0,
+    "is_active": true
+  },
+  "SUP-REG-02": {
+    "supplier_id": "SUP-REG-02",
+    "supplier_name": "Ternak Rumahan Pak Budi",
+    "category": "PROTEIN",
+    "commodity": "DAGING_AYAM",
+    "supported_items": [
+      "ITEM-AYAM-01"
+    ],
+    "halal_certified": false,
+    "halal_cert_number": null,
+    "unit_price_idr": 31000.0,
+    "daily_capacity_kg": 80.0,
+    "lead_time_hours": 1.5,
+    "distance_km": 8.0,
+    "reliability_rating": 75.0,
+    "is_active": true
+  },
+  "SUP-REG-03": {
+    "supplier_id": "SUP-REG-03",
+    "supplier_name": "CV Berkah Mandiri Unggas",
+    "category": "PROTEIN",
+    "commodity": "DAGING_AYAM",
+    "supported_items": [
+      "ITEM-AYAM-01"
+    ],
+    "halal_certified": true,
+    "halal_cert_number": "ID32110000777889900",
+    "unit_price_idr": 37000.0,
+    "daily_capacity_kg": 250.0,
+    "lead_time_hours": 3.0,
+    "distance_km": 15.0,
+    "reliability_rating": 95.0,
+    "is_active": true
+  },
+  "SUP-REG-04": {
+    "supplier_id": "SUP-REG-04",
+    "supplier_name": "CV Berkah Tahu Alami",
     "category": "PROTEIN",
     "commodity": "TAHU",
     "supported_items": [
@@ -132,7 +183,7 @@
     "daily_capacity_kg": 200.0,
     "lead_time_hours": 3.0,
     "distance_km": 15.0,
-    "reliability_rating": 85.0,
+    "reliability_rating": 90.0,
     "is_active": true
   }
 }
