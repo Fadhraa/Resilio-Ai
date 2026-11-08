@@ -122,6 +122,15 @@ export interface ApprovalRequest {
 export interface PurchaseOrderResponse {
   status: string;
   po_number: string;
+  incident_id?: string;
+  supplier_id?: string;
+  supplier_name?: string;
+  item_id?: string;
+  approved_qty_kg?: number;
+  unit_price_idr?: number;
+  total_amount_idr?: number;
+  logistics_strategy?: LogisticsStrategy;
+  approver_name?: string;
   generated_at: string;
   po_download_url: string;
 }

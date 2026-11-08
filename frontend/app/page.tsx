@@ -166,13 +166,13 @@ export default function DashboardPage() {
       const eventSource = new EventSource(streamUrl);
 
       eventSource.addEventListener("node_started", (e) => {
-        const payload: PipelineStreamEvent["data"] = JSON.parse(e.data);
-        if (payload.node === "deterministic_data_layer") setActiveStep(1);
-        if (payload.node === "compliance_filter") setActiveStep(2);
-        if (payload.node === "strategic_procurement_agent") setActiveStep(3);
-        if (payload.node === "feasibility_scoring_engine") setActiveStep(4);
+        const payload = JSON.parse(e.data) as NonNullable<PipelineStreamEvent["data"]>;
+        if (payload?.node === "deterministic_data_layer") setActiveStep(1);
+        if (payload?.node === "compliance_filter") setActiveStep(2);
+        if (payload?.node === "strategic_procurement_agent") setActiveStep(3);
+        if (payload?.node === "feasibility_scoring_engine") setActiveStep(4);
 
-        if (payload.message) {
+        if (payload?.message) {
           setStatusMessage(payload.message);
           setStreamLogs((prev) => [
             `[${new Date().toLocaleTimeString()}] ${payload.message}`,
@@ -182,21 +182,21 @@ export default function DashboardPage() {
       });
 
       eventSource.addEventListener("node_completed", (e) => {
-        const payload: PipelineStreamEvent["data"] = JSON.parse(e.data);
-        if (payload.node === "deterministic_data_layer") {
+        const payload = JSON.parse(e.data) as NonNullable<PipelineStreamEvent["data"]>;
+        if (payload?.node === "deterministic_data_layer") {
           setCompletedSteps((prev) => [...prev, 1]);
         }
-        if (payload.node === "compliance_filter") {
+        if (payload?.node === "compliance_filter") {
           setCompletedSteps((prev) => [...prev, 2]);
         }
-        if (payload.node === "strategic_procurement_agent") {
+        if (payload?.node === "strategic_procurement_agent") {
           setCompletedSteps((prev) => [...prev, 3]);
         }
-        if (payload.node === "feasibility_scoring_engine") {
+        if (payload?.node === "feasibility_scoring_engine") {
           setCompletedSteps((prev) => [...prev, 4]);
         }
 
-        if (payload.message) {
+        if (payload?.message) {
           setStreamLogs((prev) => [
             `[${new Date().toLocaleTimeString()}] Selesai: ${payload.message}`,
             ...prev,
@@ -205,10 +205,10 @@ export default function DashboardPage() {
       });
 
       eventSource.addEventListener("workflow_waiting_approval", async (e) => {
-        const payload: PipelineStreamEvent["data"] = JSON.parse(e.data);
+        const payload = JSON.parse(e.data) as NonNullable<PipelineStreamEvent["data"]>;
         setActiveStep(5);
         setStatusMessage(
-          payload.message ||
+          payload?.message ||
             "Pencarian selesai! Menunggu persetujuan Anda sebagai Kepala SPPG."
         );
         eventSource.close();
