@@ -160,3 +160,60 @@ export interface PipelineStreamEvent {
   };
 }
 
+// 15. Kontrak Conversational Agent & Chatbot
+export type ChatIntent =
+  | "REPORT_INCIDENT"
+  | "REQUEST_REVISION"
+  | "CONFIRM_APPROVAL"
+  | "GENERAL_INQUIRY"
+  | "MANAGE_SUPPLIER";
+
+export type ChatActionRequired =
+  | "NONE"
+  | "CLARIFICATION_NEEDED"
+  | "APPROVAL_PENDING"
+  | "COMPLETED";
+
+export interface ChatRequest {
+  session_id: string;
+  message: string;
+  user_role?: string;
+}
+
+export interface ChatResponse {
+  session_id: string;
+  reply: string;
+  intent: ChatIntent;
+  action_required: ChatActionRequired;
+  preview_data?: Record<string, any>;
+}
+
+// 16. Kontrak Data Master Supplier & Inventaris
+export interface SupplierRecord {
+  supplier_id: string;
+  supplier_name: string;
+  category: string;
+  commodity: string;
+  supported_items: string[];
+  halal_certified: boolean;
+  halal_cert_number?: string;
+  unit_price_idr: number;
+  daily_capacity_kg: number;
+  lead_time_hours: number;
+  distance_km: number;
+  reliability_rating: number;
+  is_active: boolean;
+}
+
+export interface InventoryItem {
+  item_id: string;
+  item_name: string;
+  category: string;
+  current_stock_kg: number;
+  safety_stock_kg: number;
+  freezer_capacity_kg: number;
+  freezer_occupied_kg: number;
+  sop_max_price_per_kg: number;
+}
+
+

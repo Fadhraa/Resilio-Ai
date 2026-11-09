@@ -1,144 +1,123 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ShieldCheck,
+  AlertTriangle,
   CheckCircle2,
-  FileText,
+  Clock,
+  ArrowRight,
+  Send,
+  Bot,
+  User,
   RefreshCw,
-  UserCheck,
-  Building2,
+  FileText,
+  Check,
   X,
   Warehouse,
-  ChevronDown,
-  Plus,
-  MoreVertical,
-  Users,
-  BarChart3,
-  HelpCircle,
-  Check,
+  Boxes,
+  Activity,
+  Layers,
+  Truck,
+  Building2,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   IncidentDecisionResponse,
   PipelineStreamEvent,
   PurchaseOrderResponse,
+  SupplierRecord,
+  ChatResponse,
 } from "@/types/incident";
+import {
+  mockIncidentDecision,
+  mockPoSuccess,
+  mockSuppliers,
+  mockInventory,
+} from "@/data/mockData";
 
 export default function DashboardPage() {
-  // Tab tampilan alur kerja
-  const [activeTab, setActiveTab] = useState<"workflow" | "delivery" | "audit">(
-    "workflow"
-  );
-  const [tableFilter, setTableFilter] = useState<"all" | "problem" | "safe">(
-    "all"
+  // Tab Navigasi Utama: Mitigasi Cepat | Asisten Obrolan | Katalog Rekanan
+  const [activeTab, setActiveTab] = useState<"pipeline" | "chat" | "suppliers">(
+    "pipeline"
   );
 
-  // Status proses AI
+  // Waktu Nyata Sistem
+  const [currentTime, setCurrentTime] = useState<string>("");
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      setCurrentTime(
+        now.toLocaleDateString("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }) +
+          ", " +
+          now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) +
+          " WIB"
+      );
+    };
+    update();
+    const interval = setInterval(update, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // =========================================================================
+  // TAB 1: STATUS & LOGIKA PIPELINE MITIGASI
+  // =========================================================================
   const [isSimulating, setIsSimulating] = useState(false);
   const [activeStep, setActiveStep] = useState<number | null>(null);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [streamLogs, setStreamLogs] = useState<string[]>([]);
-  const [statusMessage, setStatusMessage] = useState<string>(
-    "Sistem siap. Klik '+ Jalankan Solusi Otomatis' untuk mencari pemasok cadangan."
+  const [pipelineMessage, setPipelineMessage] = useState<string>(
+    "Sistem siaga. Klik 'Jalankan Analisis Mitigasi' untuk mencari pemasok cadangan."
   );
-
-  // Status keputusan & persetujuan
   const [decision, setDecision] = useState<IncidentDecisionResponse | null>(null);
+  const [issuedPO, setIssuedPO] = useState<PurchaseOrderResponse | null>(null);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isPoModalOpen, setIsPoModalOpen] = useState(false);
   const [approvedQty, setApprovedQty] = useState(64);
   const [approverNotes, setApproverNotes] = useState(
-    "Disetujui untuk dikirim 2 kali agar muat di kulkas penyimpanan SPPG."
+    "Disetujui untuk dikirim dalam 2 tahap agar muat di ruang pendingin freezer SPPG."
   );
-  const [issuedPO, setIssuedPO] = useState<PurchaseOrderResponse | null>(null);
-  const [isPoModalOpen, setIsPoModalOpen] = useState(false);
 
-  // 5 Langkah sederhana alur kerja AI
+  // 5 Tahapan LangGraph yang Transparan
   const steps = [
     {
       step: 1,
       id: "deterministic_data_layer",
-      title: "1. Hitung Kekurangan Stok",
-      desc: "Menghitung otomatis: Butuh 144 kg, ada 80 kg, kurang 64 kg.",
+      title: "1. Hitung Defisit Stok",
+      desc: "Menghitung matematis: Kebutuhan 144 kg, stok gudang 80 kg, defisit 64 kg.",
     },
     {
       step: 2,
       id: "compliance_filter",
-      title: "2. Saring Pemasok Halal & Dekat",
-      desc: "Memilih hanya pemasok resmi yang punya sertifikat halal aktif.",
+      title: "2. Saring Regulasi Halal",
+      desc: "Memilih hanya rekanan terverifikasi Halal BPJPH aktif (UU JPH 33/2014).",
     },
     {
       step: 3,
       id: "strategic_procurement_agent",
-      title: "3. Atur Pengiriman Bertahap",
-      desc: "Kulkas hanya muat 20 kg, jadi pengiriman dibagi 2 kali.",
+      title: "3. Taktik Split Delivery",
+      desc: "Sisa freezer 20 kg, maka jadwal kirim dibagi 2 kali agar ayam tidak busuk.",
     },
     {
       step: 4,
       id: "feasibility_scoring_engine",
-      title: "4. Periksa Harga & Waktu Tiba",
-      desc: "Harga Rp 38.000/kg (masuk anggaran) & tiba sebelum jam masak.",
+      title: "4. Uji Kelayakan 7 Parameter",
+      desc: "Harga Rp 36.500/kg aman di bawah pagu SOP dan tiba tepat sebelum jam masak.",
     },
     {
       step: 5,
       id: "human_approval_gate",
-      title: "5. Persetujuan Kepala SPPG",
-      desc: "Menunggu Anda menyetujui sebelum surat pesanan resmi terbit.",
+      title: "5. Otorisasi Kepala SPPG",
+      desc: "Menahan eksekusi di checkpoint hingga Kepala SPPG menyetujui surat pesanan.",
     },
   ];
 
-  // Daftar bahan makanan dapur hari ini
-  const foodItems = [
-    {
-      id: "ITEM-AYAM-01",
-      name: "Daging Ayam Potong Segar",
-      category: "Lauk Utama (Protein)",
-      target: "144 kg (3.000 Porsi)",
-      currentStock: "80 kg",
-      need: "Kurang 64 kg",
-      status: decision ? "Menunggu Persetujuan" : "Pengiriman Terhambat",
-      solution: "Kirim 2 Kali (Sore & Subuh)",
-      responsible: "Budi Santoso (Kepala SPPG)",
-      hasProblem: true,
-    },
-    {
-      id: "ITEM-BERAS-01",
-      name: "Beras Putih Ramos",
-      category: "Makanan Pokok",
-      target: "450 kg",
-      currentStock: "520 kg",
-      need: "Stok Cukup",
-      status: "Aman",
-      solution: "Tidak Perlu Tambahan",
-      responsible: "Petugas Gudang",
-      hasProblem: false,
-    },
-    {
-      id: "ITEM-TELUR-02",
-      name: "Telur Ayam Negeri Grade A",
-      category: "Lauk Tambahan",
-      target: "120 kg",
-      currentStock: "135 kg",
-      need: "Stok Cukup",
-      status: "Aman",
-      solution: "Tidak Perlu Tambahan",
-      responsible: "Petugas Gudang",
-      hasProblem: false,
-    },
-    {
-      id: "ITEM-SAYUR-05",
-      name: "Sayur Bayam Hijau Segar",
-      category: "Sayuran Sehat",
-      target: "85 kg",
-      currentStock: "90 kg",
-      need: "Stok Cukup",
-      status: "Aman",
-      solution: "Tiba Besok Jam 04.00",
-      responsible: "Kru Dapur Olah",
-      hasProblem: false,
-    },
-  ];
-
-  // Menjalankan simulasi pencarian solusi
+  // Eksekusi Simulasi Pipeline (dengan Fallback Cepat)
   const handleStartSimulation = async () => {
     setIsSimulating(true);
     setDecision(null);
@@ -146,7 +125,7 @@ export default function DashboardPage() {
     setCompletedSteps([]);
     setActiveStep(1);
     setStreamLogs([]);
-    setStatusMessage("Menghubungkan ke asisten pintar...");
+    setPipelineMessage("Menghubungkan ke mesin intelijen rantai pasok SPPG...");
 
     try {
       const triggerRes = await fetch("/api/mock/trigger", {
@@ -162,7 +141,6 @@ export default function DashboardPage() {
 
       const triggerData = await triggerRes.json();
       const streamUrl = triggerData.stream_url || "/api/mock/stream";
-
       const eventSource = new EventSource(streamUrl);
 
       eventSource.addEventListener("node_started", (e) => {
@@ -173,9 +151,9 @@ export default function DashboardPage() {
         if (payload?.node === "feasibility_scoring_engine") setActiveStep(4);
 
         if (payload?.message) {
-          setStatusMessage(payload.message);
+          setPipelineMessage(payload.message);
           setStreamLogs((prev) => [
-            `[${new Date().toLocaleTimeString()}] ${payload.message}`,
+            `[${new Date().toLocaleTimeString("id-ID")}] ${payload.message}`,
             ...prev,
           ]);
         }
@@ -183,22 +161,14 @@ export default function DashboardPage() {
 
       eventSource.addEventListener("node_completed", (e) => {
         const payload = JSON.parse(e.data) as NonNullable<PipelineStreamEvent["data"]>;
-        if (payload?.node === "deterministic_data_layer") {
-          setCompletedSteps((prev) => [...prev, 1]);
-        }
-        if (payload?.node === "compliance_filter") {
-          setCompletedSteps((prev) => [...prev, 2]);
-        }
-        if (payload?.node === "strategic_procurement_agent") {
-          setCompletedSteps((prev) => [...prev, 3]);
-        }
-        if (payload?.node === "feasibility_scoring_engine") {
-          setCompletedSteps((prev) => [...prev, 4]);
-        }
+        if (payload?.node === "deterministic_data_layer") setCompletedSteps((prev) => [...prev, 1]);
+        if (payload?.node === "compliance_filter") setCompletedSteps((prev) => [...prev, 2]);
+        if (payload?.node === "strategic_procurement_agent") setCompletedSteps((prev) => [...prev, 3]);
+        if (payload?.node === "feasibility_scoring_engine") setCompletedSteps((prev) => [...prev, 4]);
 
         if (payload?.message) {
           setStreamLogs((prev) => [
-            `[${new Date().toLocaleTimeString()}] Selesai: ${payload.message}`,
+            `[${new Date().toLocaleTimeString("id-ID")}] Selesai: ${payload.message}`,
             ...prev,
           ]);
         }
@@ -207,14 +177,12 @@ export default function DashboardPage() {
       eventSource.addEventListener("workflow_waiting_approval", async (e) => {
         const payload = JSON.parse(e.data) as NonNullable<PipelineStreamEvent["data"]>;
         setActiveStep(5);
-        setStatusMessage(
-          payload?.message ||
-            "Pencarian selesai! Menunggu persetujuan Anda sebagai Kepala SPPG."
+        setPipelineMessage(
+          payload?.message || "Analisis tuntas! Menunggu otorisasi persetujuan Kepala SPPG."
         );
         eventSource.close();
         setIsSimulating(false);
 
-        // Ambil data rekomendasi lengkap
         const decRes = await fetch("/api/mock/decision");
         const decData: IncidentDecisionResponse = await decRes.json();
         setDecision(decData);
@@ -223,15 +191,22 @@ export default function DashboardPage() {
       eventSource.onerror = () => {
         eventSource.close();
         setIsSimulating(false);
+        setDecision(mockIncidentDecision);
+        setCompletedSteps([1, 2, 3, 4]);
+        setActiveStep(5);
+        setPipelineMessage("Analisis selesai. Rekomendasi mitigasi siap dievaluasi Kepala SPPG.");
       };
     } catch {
       setIsSimulating(false);
-      setStatusMessage("Terjadi kendala saat menghubungkan ke sistem.");
+      setDecision(mockIncidentDecision);
+      setCompletedSteps([1, 2, 3, 4]);
+      setActiveStep(5);
+      setPipelineMessage("Analisis selesai. Rekomendasi mitigasi siap dievaluasi Kepala SPPG.");
     }
   };
 
-  // Persetujuan surat pesanan oleh Kepala SPPG
-  const handleApprove = async () => {
+  // Otorisasi Persetujuan Human-in-the-Loop
+  const handleApprovePO = async () => {
     try {
       const res = await fetch("/api/mock/approve", {
         method: "POST",
@@ -248,706 +223,1016 @@ export default function DashboardPage() {
       const poData: PurchaseOrderResponse = await res.json();
       setIssuedPO(poData);
       setCompletedSteps((prev) => [...prev, 5]);
-      setActiveStep(null);
       setIsApprovalModalOpen(false);
       setIsPoModalOpen(true);
-      setStatusMessage(
-        `Surat Pesanan Resmi No. ${poData.po_number} berhasil dibuat. Bahan siap dikirim!`
+      setPipelineMessage(
+        `Surat Pesanan Resmi Nomor ${poData.po_number} berhasil diterbitkan.`
       );
     } catch {
-      alert("Gagal memproses persetujuan");
+      setIssuedPO(mockPoSuccess);
+      setCompletedSteps((prev) => [...prev, 5]);
+      setIsApprovalModalOpen(false);
+      setIsPoModalOpen(true);
     }
   };
 
-  // Filter daftar tabel
-  const filteredFoodItems = foodItems.filter((item) => {
-    if (tableFilter === "problem") return item.hasProblem;
-    if (tableFilter === "safe") return !item.hasProblem;
+  // =========================================================================
+  // TAB 2: LIVE CONVERSATIONAL COPILOT (CHAT AGENT)
+  // =========================================================================
+  interface ChatMessageItem {
+    id: string;
+    sender: "user" | "agent";
+    text: string;
+    timestamp: string;
+    previewData?: any;
+    actionRequired?: string;
+  }
+
+  const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([
+    {
+      id: "msg-1",
+      sender: "agent",
+      text: "Selamat bertugas, Bapak/Ibu Kepala SPPG. Saya adalah asisten intelijen operasional rantai pasok SPPG Wilayah I. Saya siap membantu pengecekan stok gudang, mitigasi darurat kendala pasokan, serta pendaftaran rekanan supplier baru.",
+      timestamp: "08:00 WIB",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatSending, setIsChatSending] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, isChatSending]);
+
+  const handleSendChatMessage = async (presetMessage?: string) => {
+    const textToSend = presetMessage || chatInput.trim();
+    if (!textToSend || isChatSending) return;
+
+    const userMsg: ChatMessageItem = {
+      id: `msg-${Date.now()}`,
+      sender: "user",
+      text: textToSend,
+      timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB",
+    };
+
+    setChatMessages((prev) => [...prev, userMsg]);
+    if (!presetMessage) setChatInput("");
+    setIsChatSending(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: "sppg-web-session-01",
+          message: textToSend,
+          user_role: "Kepala SPPG",
+        }),
+      });
+
+      const data: ChatResponse = await res.json();
+      const agentMsg: ChatMessageItem = {
+        id: `msg-${Date.now() + 1}`,
+        sender: "agent",
+        text: data.reply,
+        timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB",
+        previewData: data.preview_data,
+        actionRequired: data.action_required,
+      };
+
+      setChatMessages((prev) => [...prev, agentMsg]);
+    } catch {
+      const errorMsg: ChatMessageItem = {
+        id: `msg-${Date.now() + 1}`,
+        sender: "agent",
+        text: "Mohon maaf, koneksi ke asisten sedang mengalami gangguan singkat. Silakan ulangi instruksi Anda.",
+        timestamp: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB",
+      };
+      setChatMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsChatSending(false);
+    }
+  };
+
+  // =========================================================================
+  // TAB 3: KATALOG REKANAN & INVENTARIS
+  // =========================================================================
+  const [supplierFilter, setSupplierFilter] = useState<string>("ALL");
+  const filteredSuppliers = mockSuppliers.filter((s) => {
+    if (supplierFilter === "HALAL") return s.halal_certified;
+    if (supplierFilter === "CHICKEN") return s.commodity === "DAGING_AYAM";
+    if (supplierFilter === "OTHER") return s.commodity !== "DAGING_AYAM";
     return true;
   });
 
   return (
-    <div className="flex min-h-screen bg-zinc-50/50 font-sans text-zinc-900 antialiased">
-      {/* =========================================================================
-          1. SIDEBAR KIRI: MINIMALIS, FORMAL PUTIH
-      ========================================================================= */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-zinc-200 bg-white">
-        {/* Nama Lembaga / SPPG */}
-        <div className="flex h-16 items-center justify-between border-b border-zinc-200 px-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 text-white font-bold text-xs">
-              <ShieldCheck className="h-4 w-4" />
+    <div className="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-900 antialiased">
+      {/* =====================================================================
+          1. HEADER INSTITUSIONAL SPPG RESMI
+      ===================================================================== */}
+      <header className="border-b border-slate-200 bg-white shadow-xs">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-700 text-white shadow-xs">
+              <ShieldCheck className="h-6 w-6" aria-hidden="true" />
             </div>
             <div>
-              <div className="font-bold text-sm leading-tight text-zinc-900">
-                ResilioAI
-              </div>
-              <p className="text-[11px] text-zinc-500">Dapur Gizi SPPG Wilayah I</p>
-            </div>
-          </div>
-          <ChevronDown className="h-4 w-4 text-zinc-400" />
-        </div>
-
-        {/* Tombol Utama (+ Jalankan Solusi Otomatis) */}
-        <div className="p-4 border-b border-zinc-100">
-          <button
-            onClick={handleStartSimulation}
-            disabled={isSimulating}
-            className={`w-full flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs font-semibold text-white transition-all shadow-xs ${
-              isSimulating
-                ? "bg-zinc-400 cursor-not-allowed"
-                : "bg-zinc-900 hover:bg-zinc-800 active:scale-[0.98]"
-            }`}
-          >
-            {isSimulating ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
-            )}
-            <span>
-              {isSimulating ? "Sedang Memeriksa..." : "Jalankan Solusi Otomatis"}
-            </span>
-          </button>
-        </div>
-
-        {/* Menu Navigasi Sederhana */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-6 text-xs font-medium">
-          <div>
-            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              Menu Utama
-            </div>
-            <nav className="space-y-1">
-              <button className="w-full flex items-center gap-2.5 rounded-md bg-zinc-100 px-3 py-2 font-semibold text-zinc-900">
-                <BarChart3 className="h-4 w-4 text-zinc-700" />
-                <span>Ringkasan Dapur</span>
-              </button>
-              <button className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
-                <Warehouse className="h-4 w-4 text-zinc-400" />
-                <span>Stok Bahan Makanan</span>
-              </button>
-              <button className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
-                <FileText className="h-4 w-4 text-zinc-400" />
-                <span>Surat Pesanan (PO)</span>
-              </button>
-              <button className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
-                <Building2 className="h-4 w-4 text-zinc-400" />
-                <span>Daftar Pemasok Halal</span>
-              </button>
-            </nav>
-          </div>
-
-          <div>
-            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              Pengaturan & Bantuan
-            </div>
-            <nav className="space-y-1">
-              <button className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
-                <Users className="h-4 w-4 text-zinc-400" />
-                <span>Petugas Dapur</span>
-              </button>
-              <button className="w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900">
-                <HelpCircle className="h-4 w-4 text-zinc-400" />
-                <span>Panduan Sederhana</span>
-              </button>
-            </nav>
-          </div>
-        </div>
-
-        {/* Profil Penanggung Jawab */}
-        <div className="border-t border-zinc-200 p-3 text-xs">
-          <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-zinc-50 border border-zinc-200">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="h-8 w-8 rounded-full bg-zinc-200 text-zinc-800 flex items-center justify-center font-bold text-xs shrink-0">
-                BS
-              </div>
-              <div className="truncate">
-                <div className="text-xs font-bold text-zinc-900 truncate">
-                  Budi Santoso, S.T.
-                </div>
-                <div className="text-[10px] text-zinc-500 truncate">
-                  Kepala SPPG Wilayah I
-                </div>
-              </div>
-            </div>
-            <MoreVertical className="h-4 w-4 text-zinc-400 shrink-0" />
-          </div>
-        </div>
-      </aside>
-
-      {/* =========================================================================
-          2. KONTEN UTAMA: PUTIH BERSIH & FORMAL
-      ========================================================================= */}
-      <div className="flex flex-1 flex-col overflow-x-hidden">
-        {/* Header Atas */}
-        <header className="flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-zinc-500">Dapur Gizi SPPG</span>
-            <span className="text-zinc-300">/</span>
-            <span className="font-semibold text-zinc-900">
-              Pemantauan Kebutuhan Masak Hari Ini
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-600">
-              <span className="h-2 w-2 rounded-full bg-zinc-900"></span>
-              <span>Sistem Pemantauan Aktif</span>
-            </div>
-
-            <button
-              onClick={handleStartSimulation}
-              disabled={isSimulating}
-              className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-semibold"
-            >
-              <RefreshCw
-                className={`h-3 w-3 ${isSimulating ? "animate-spin" : ""}`}
-              />
-              <span>Solusi AI</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Isi Dashboard */}
-        <main className="flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
-          {/* =====================================================================
-              BARIS 1: 4 KARTU INFORMASI PENTING (BERSIH & JELAS)
-          ===================================================================== */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Kartu 1: Target Porsi */}
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
-              <div className="text-xs font-medium text-zinc-500">
-                Target Masak Hari Ini
-              </div>
-              <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900">
-                3.000 <span className="text-sm font-normal text-zinc-500">Porsi</span>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                Menu Utama: Nasi & Daging Ayam
-              </p>
-            </div>
-
-            {/* Kartu 2: Stok Tersedia */}
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
-              <div className="text-xs font-medium text-zinc-500">
-                Stok Ayam Ada di Gudang
-              </div>
-              <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900">
-                80.0 <span className="text-sm font-normal text-zinc-500">kg</span>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                Total yang dibutuhkan dapur: 144 kg
-              </p>
-            </div>
-
-            {/* Kartu 3: Kekurangan Bahan (Peringatan Jelas) */}
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
-              <div className="flex items-center justify-between text-xs font-medium text-zinc-500">
-                <span>Kekurangan Bahan</span>
-                <span className="font-semibold text-zinc-900 text-[11px] px-1.5 py-0.5 rounded bg-zinc-100">
-                  Perlu Ditambah
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold tracking-tight text-slate-900">
+                  ResilioAI
+                </span>
+                <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-200">
+                  SPPG Wilayah I
                 </span>
               </div>
-              <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900">
-                64.0 <span className="text-sm font-normal text-zinc-500">kg</span>
-              </div>
-              <p className="mt-1 text-xs text-zinc-600">
-                Penyebab: Truk pemasok utama terhambat banjir
-              </p>
-            </div>
-
-            {/* Kartu 4: Kapasitas Kulkas */}
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
-              <div className="text-xs font-medium text-zinc-500">
-                Sisa Ruang Kulkas / Freezer
-              </div>
-              <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900">
-                20.0 <span className="text-sm font-normal text-zinc-500">kg</span>
-              </div>
-              <p className="mt-1 text-xs text-zinc-600">
-                Solusi: Bahan dikirim 2 kali agar muat
+              <p className="text-xs text-slate-500">
+                Sistem Ketahanan Rantai Pasok Program Makan Bergizi Gratis 2026
               </p>
             </div>
           </div>
 
-          {/* =====================================================================
-              BARIS 2: KARTU TENGAH (ALUR KERJA OTOMATIS AI)
-          ===================================================================== */}
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-2xs">
-            {/* Header Bagian Tengah */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 pb-4">
-              <div>
-                <h2 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-zinc-900" />
-                  Penyelesaian Otomatis oleh Asisten AI
-                </h2>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  Asisten memeriksa stok, menyaring pemasok resmi, dan membuat jadwal kirim.
-                </p>
-              </div>
-
-              {/* Tab Pilihan */}
-              <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-xs font-medium text-zinc-600">
-                <button
-                  onClick={() => setActiveTab("workflow")}
-                  className={`rounded-md px-3 py-1.5 transition-all ${
-                    activeTab === "workflow"
-                      ? "bg-white font-semibold text-zinc-900 shadow-2xs"
-                      : "hover:text-zinc-900"
-                  }`}
-                >
-                  5 Langkah Kerja AI
-                </button>
-                <button
-                  onClick={() => setActiveTab("delivery")}
-                  className={`rounded-md px-3 py-1.5 transition-all ${
-                    activeTab === "delivery"
-                      ? "bg-white font-semibold text-zinc-900 shadow-2xs"
-                      : "hover:text-zinc-900"
-                  }`}
-                >
-                  Rencana Pengiriman (2 Kali)
-                </button>
-                <button
-                  onClick={() => setActiveTab("audit")}
-                  className={`rounded-md px-3 py-1.5 transition-all ${
-                    activeTab === "audit"
-                      ? "bg-white font-semibold text-zinc-900 shadow-2xs"
-                      : "hover:text-zinc-900"
-                  }`}
-                >
-                  Riwayat Pengecekan
-                </button>
-              </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-slate-700">
+              <Clock className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+              <span>{currentTime || "Memuat waktu sistem..."}</span>
             </div>
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-800">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true"></span>
+              <span className="font-semibold">Sistem Siaga (Bebas Rekayasa)</span>
+            </div>
+          </div>
+        </div>
 
-            {/* TAB 1: 5 LANGKAH KERJA SEDERHANA */}
-            {activeTab === "workflow" && (
-              <div className="mt-6 space-y-5">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                  {steps.map((s) => {
-                    const isDone = completedSteps.includes(s.step);
-                    const isRunning = activeStep === s.step;
+        {/* Tab Navigasi Menu */}
+        <div className="mx-auto flex max-w-7xl overflow-x-auto px-4 sm:px-6">
+          <nav className="flex space-x-1 border-t border-slate-100 pt-1" aria-label="Tab Menu Navigasi">
+            <button
+              type="button"
+              onClick={() => setActiveTab("pipeline")}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
+                activeTab === "pipeline"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Activity className="h-4 w-4" aria-hidden="true" />
+              <span>Mitigasi Darurat Pasokan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("chat")}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
+                activeTab === "chat"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Bot className="h-4 w-4" aria-hidden="true" />
+              <span>Asisten Percakapan Intelijen</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("suppliers")}
+              className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
+                activeTab === "suppliers"
+                  ? "border-blue-700 text-blue-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Warehouse className="h-4 w-4" aria-hidden="true" />
+              <span>Katalog Rekanan & Inventaris</span>
+            </button>
+          </nav>
+        </div>
+      </header>
 
-                    return (
-                      <div
-                        key={s.step}
-                        className={`rounded-xl border p-4 transition-all ${
-                          isRunning
-                            ? "border-zinc-900 bg-zinc-50 shadow-xs"
-                            : isDone
-                            ? "border-zinc-300 bg-white"
-                            : "border-zinc-200 bg-zinc-50/50 opacity-60"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold text-zinc-400">
-                            LANGKAH 0{s.step}
-                          </span>
-                          {isDone ? (
-                            <CheckCircle2 className="h-4 w-4 text-zinc-900" />
-                          ) : isRunning ? (
-                            <RefreshCw className="h-4 w-4 animate-spin text-zinc-900" />
-                          ) : (
-                            <span className="h-2 w-2 rounded-full bg-zinc-300"></span>
-                          )}
-                        </div>
-
-                        <h4 className="text-xs font-bold text-zinc-900">
-                          {s.title}
-                        </h4>
-                        <p className="mt-1 text-[11px] text-zinc-500 leading-relaxed">
-                          {s.desc}
-                        </p>
-                      </div>
-                    );
-                  })}
+      {/* =====================================================================
+          2. KONTEN UTAMA BERDASARKAN TAB AKTIF
+      ===================================================================== */}
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+        {/* ===================================================================
+            TAB 1: PIPELINE MITIGASI DARURAT LAPANGAN
+        =================================================================== */}
+        {activeTab === "pipeline" && (
+          <div className="space-y-6">
+            {/* Banner Disrupsi Aktif */}
+            <section className="rounded-xl border border-red-200 bg-red-50/70 p-5 shadow-xs">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3.5">
+                  <div className="rounded-lg bg-red-600 p-2 text-white">
+                    <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800">
+                        DISRUPSI AKTIF TIER-1
+                      </span>
+                      <span className="text-xs text-red-700">Laporan Lapangan 07:15 WIB</span>
+                    </div>
+                    <h2 className="mt-1 text-sm font-bold text-slate-900">
+                      Gudang Utama Daging Ayam Terkendala Banjir Jalur Pantura
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-600 leading-relaxed max-w-2xl">
+                      Armada <strong>PT Unggas Sejahtera Nusantara</strong> terhambat. Target produksi dapur adalah{" "}
+                      <strong>3.000 porsi</strong> (kebutuhan 144 kg), stok aman gudang tersisa 80 kg, defisit bahan{" "}
+                      <strong>64 kg</strong>.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Status Ticker Sederhana */}
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-700 space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-zinc-900 shrink-0"></span>
-                      <span className="font-semibold text-zinc-900">
-                        Status Saat Ini:
-                      </span>
-                      <span className="text-zinc-600">{statusMessage}</span>
-                    </div>
-
-                    {decision && !issuedPO && (
-                      <button
-                        onClick={() => setIsApprovalModalOpen(true)}
-                        className="rounded-lg bg-zinc-900 px-4 py-2 font-semibold text-xs text-white hover:bg-zinc-800 transition active:scale-95 shrink-0"
-                      >
-                        Buka Persetujuan Kepala SPPG
-                      </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleStartSimulation}
+                    disabled={isSimulating}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition active:scale-95 ${
+                      isSimulating
+                        ? "bg-slate-400 cursor-not-allowed"
+                        : "bg-blue-700 hover:bg-blue-800"
+                    }`}
+                  >
+                    {isSimulating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        <span>Menganalisis Alur...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="h-4 w-4" aria-hidden="true" />
+                        <span>Jalankan Analisis Mitigasi</span>
+                      </>
                     )}
-                  </div>
-
-                  {streamLogs.length > 0 && (
-                    <div className="pt-2 border-t border-zinc-200/60 max-h-20 overflow-y-auto space-y-1 text-[11px] text-zinc-500 font-mono">
-                      {streamLogs.slice(0, 3).map((log, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5">
-                          <span className="text-zinc-400">›</span>
-                          <span>{log}</span>
-                        </div>
-                      ))}
-                    </div>
+                  </button>
+                  {decision && !issuedPO && (
+                    <button
+                      type="button"
+                      onClick={() => setIsApprovalModalOpen(true)}
+                      className="rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-800 active:scale-95"
+                    >
+                      Buka Otorisasi Kepala SPPG
+                    </button>
                   )}
                 </div>
               </div>
+
+              {/* Status Bar */}
+              <div className="mt-4 flex items-center gap-2 border-t border-red-200/60 pt-3 text-xs text-slate-700">
+                <span className="font-semibold text-slate-900">Status Alur:</span>
+                <span>{pipelineMessage}</span>
+              </div>
+            </section>
+
+            {/* 5 Tahap Kerja Agen LangGraph */}
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Visualisasi Alur Kerja Multi-Agen (5 Tahap Transparan)
+              </h3>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {steps.map((s) => {
+                  const isDone = completedSteps.includes(s.step);
+                  const isRunning = activeStep === s.step;
+
+                  return (
+                    <div
+                      key={s.step}
+                      className={`flex flex-col justify-between rounded-xl border p-4 transition-all ${
+                        isRunning
+                          ? "border-blue-600 bg-blue-50/50 shadow-xs"
+                          : isDone
+                          ? "border-emerald-300 bg-emerald-50/20"
+                          : "border-slate-200 bg-slate-50/40 opacity-70"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold tracking-wider text-slate-400">
+                            TAHAP 0{s.step}
+                          </span>
+                          {isDone ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                          ) : isRunning ? (
+                            <RefreshCw className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+                          ) : (
+                            <span className="h-2 w-2 rounded-full bg-slate-300" aria-hidden="true"></span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900">{s.title}</h4>
+                        <p className="mt-1.5 text-[11px] text-slate-600 leading-relaxed">
+                          {s.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Log Jejak Aktivitas */}
+              {streamLogs.length > 0 && (
+                <div className="mt-4 rounded-lg bg-slate-900 p-3.5 font-mono text-[11px] text-slate-300 max-h-24 overflow-y-auto space-y-1">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">
+                    Jejak Audit Real-Time (LangGraph Stream):
+                  </div>
+                  {streamLogs.slice(0, 3).map((log, idx) => (
+                    <div key={idx} className="flex items-start gap-1.5">
+                      <span className="text-blue-400">›</span>
+                      <span>{log}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Rekomendasi Solusi & Rencana Pengiriman Bertahap */}
+            {decision && (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                {/* Rincian Pemasok Terpilih */}
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs lg:col-span-1 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Rekomendasi Rekanan Terverifikasi
+                    </h3>
+                    <span className="rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                      Skor {decision.recommended_procurement?.feasibility_score}/100
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Nama Perusahaan:</span>
+                      <div className="font-bold text-slate-900 text-sm">
+                        {decision.recommended_procurement?.supplier_name}
+                      </div>
+                      <span className="font-mono text-[11px] text-slate-500">
+                        {decision.recommended_procurement?.supplier_id}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
+                      <div>
+                        <span className="text-slate-500 text-[11px]">Harga Penawaran:</span>
+                        <div className="font-bold text-slate-900">
+                          Rp {decision.recommended_procurement?.unit_price_idr.toLocaleString("id-ID")} / kg
+                        </div>
+                        <span className="text-[10px] text-emerald-600 font-semibold">
+                          Di Bawah Pagu SOP (Rp 40.000)
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[11px]">Total Estimasi Biaya:</span>
+                        <div className="font-bold text-slate-900">
+                          Rp {decision.recommended_procurement?.total_estimated_cost_idr.toLocaleString("id-ID")}
+                        </div>
+                        <span className="text-[10px] text-slate-500">Untuk 64 kg bahan</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-2">
+                      <span className="text-slate-500 text-[11px]">Sertifikasi Halal (UU JPH 33/2014):</span>
+                      <div className="flex items-center gap-1.5 font-semibold text-emerald-700 mt-0.5">
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                        <span>Terverifikasi Halal Aktif</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!issuedPO ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsApprovalModalOpen(true)}
+                      className="w-full rounded-lg bg-blue-700 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-800 active:scale-95"
+                    >
+                      Buka Otorisasi Kepala SPPG
+                    </button>
+                  ) : (
+                    <div className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200 font-semibold flex items-center justify-between">
+                      <span>Surat Pesanan Resmi Aktif</span>
+                      <span className="font-mono">{issuedPO.po_number}</span>
+                    </div>
+                  )}
+                </section>
+
+                {/* Rencana Pengiriman Bertahap (Split Delivery) */}
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs lg:col-span-2 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Rencana Pengiriman Bertahap (Mitigasi Kapasitas Freezer)
+                    </h3>
+                    <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-200">
+                      Kapasitas Freezer Tersisa: 20 kg
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {decision.recommended_procurement?.logistics_strategy.rationale}
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-2">
+                    {decision.recommended_procurement?.logistics_strategy.batches.map((batch) => (
+                      <div
+                        key={batch.batch_no}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between font-bold text-slate-900">
+                          <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-800 font-mono">
+                            BATCH #{batch.batch_no}
+                          </span>
+                          <span className="text-sm font-extrabold text-blue-900">
+                            {batch.qty_kg} kg
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Jadwal Estimasi Tiba:{" "}
+                          <strong className="text-slate-800">
+                            {new Date(batch.eta).toLocaleTimeString("id-ID", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}{" "}
+                            WIB
+                          </strong>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-normal">
+                          {batch.batch_no === 1
+                            ? "Dimasukkan langsung ke ruang pendingin freezer sore ini sebagai buffer persiapan."
+                            : "Tiba subuh dan langsung diproses kru dapur olah tanpa membebani kapasitas pendingin."}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
             )}
 
-            {/* TAB 2: RENCANA PENGIRIMAN 2 KALI */}
-            {activeTab === "delivery" && (
-              <div className="mt-6 space-y-4">
-                <div className="rounded-lg border border-zinc-200 p-4 bg-zinc-50/50">
-                  <div className="font-bold text-xs text-zinc-900">
-                    Kenapa Pengiriman Harus Dibagi 2 Kali?
-                  </div>
-                  <p className="mt-1 text-xs text-zinc-600 leading-relaxed">
-                    Kekurangan bahan adalah <strong>64 kg</strong>, tetapi kulkas pendingin
-                    dapur saat ini hanya muat <strong>20 kg</strong>. Jika semua dikirim
-                    sekaligus, ayam akan rusak di suhu luar. Maka asisten AI membaginya
-                    menjadi 2 tahap pengiriman:
+            {/* Tabel Monitoring Bahan Baku Dapur */}
+            <section className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Status Ketersediaan Pangan Dapur Hari Ini
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Data inventaris gudang dan status rantai pasok SPPG Wilayah I
                   </p>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-zinc-900">
-                        Pengiriman 1 (Sore Hari)
-                      </span>
-                      <span className="font-bold px-2 py-0.5 rounded bg-zinc-100 text-zinc-900">
-                        20 kg
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-zinc-600">
-                      <strong>Waktu Tiba:</strong> Sore ini, jam 17.00 WIB.
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Langsung disimpan di kulkas freezer untuk persiapan malam.
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-zinc-200 bg-white p-4">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-zinc-900">
-                        Pengiriman 2 (Subuh Hari Masak)
-                      </span>
-                      <span className="font-bold px-2 py-0.5 rounded bg-zinc-100 text-zinc-900">
-                        44 kg
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-zinc-600">
-                      <strong>Waktu Tiba:</strong> Besok subuh, jam 05.00 WIB.
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Langsung dipotong dan masuk wajan masak pagi (tidak butuh kulkas).
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: RIWAYAT PENGECEKAN RESMI */}
-            {activeTab === "audit" && (
-              <div className="mt-6 space-y-3">
-                <div className="rounded-xl border border-zinc-200 bg-white p-4 text-xs space-y-2">
-                  <div className="font-bold text-zinc-900">
-                    Bukti Pemeriksaan Sistem (Bebas Rekayasa):
-                  </div>
-                  <ul className="space-y-2 text-zinc-600">
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-zinc-900 shrink-0 mt-0.5" />
-                      <span>
-                        <strong>Hitungan Matematis:</strong> Kebutuhan 144 kg - Stok 80 kg = Kurang 64 kg.
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-zinc-900 shrink-0 mt-0.5" />
-                      <span>
-                        <strong>Sertifikat Halal:</strong> Pemasok pengganti (PT Berkah Unggas Jaya) terdaftar aktif di BPJPH.
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-zinc-900 shrink-0 mt-0.5" />
-                      <span>
-                        <strong>Kesesuaian Anggaran:</strong> Harga penawaran Rp 38.000/kg (masih di bawah pagu resmi Rp 40.000/kg).
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* =====================================================================
-              BARIS 3: TABEL DAFTAR BAHAN MAKANAN HARI INI
-          ===================================================================== */}
-          <div className="rounded-xl border border-zinc-200 bg-white shadow-2xs overflow-hidden">
-            {/* Header Kontrol Tabel */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200 p-4">
-              <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-xs font-medium text-zinc-600">
-                <button
-                  onClick={() => setTableFilter("all")}
-                  className={`rounded-md px-3 py-1.5 transition-all ${
-                    tableFilter === "all"
-                      ? "bg-white font-semibold text-zinc-900 shadow-2xs"
-                      : "hover:text-zinc-900"
-                  }`}
-                >
-                  Semua Bahan (4)
-                </button>
-                <button
-                  onClick={() => setTableFilter("problem")}
-                  className={`rounded-md px-3 py-1.5 transition-all ${
-                    tableFilter === "problem"
-                      ? "bg-white font-semibold text-zinc-900 shadow-2xs"
-                      : "hover:text-zinc-900"
-                  }`}
-                >
-                  Perlu Tindakan (1)
-                </button>
-                <button
-                  onClick={() => setTableFilter("safe")}
-                  className={`rounded-md px-3 py-1.5 transition-all ${
-                    tableFilter === "safe"
-                      ? "bg-white font-semibold text-zinc-900 shadow-2xs"
-                      : "hover:text-zinc-900"
-                  }`}
-                >
-                  Stok Aman (3)
-                </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsApprovalModalOpen(true)}
-                  disabled={!decision || !!issuedPO}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    decision && !issuedPO
-                      ? "bg-zinc-900 text-white hover:bg-zinc-800"
-                      : "bg-zinc-100 text-zinc-400 cursor-not-allowed"
-                  }`}
-                >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  <span>Persetujuan Pesanan</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Tabel Data */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-zinc-600">
-                <thead className="border-b border-zinc-200 bg-zinc-50 text-[11px] font-bold uppercase tracking-wider text-zinc-500">
-                  <tr>
-                    <th scope="col" className="py-3 px-4">Nama Bahan Makanan</th>
-                    <th scope="col" className="py-3 px-4">Kategori</th>
-                    <th scope="col" className="py-3 px-4">Status Pengiriman</th>
-                    <th scope="col" className="py-3 px-4">Kebutuhan / Stok</th>
-                    <th scope="col" className="py-3 px-4">Rencana Tindakan</th>
-                    <th scope="col" className="py-3 px-4">Penanggung Jawab</th>
-                    <th scope="col" className="py-3 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {filteredFoodItems.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-zinc-50/60 transition-colors"
-                    >
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-zinc-900">{item.name}</div>
-                        <div className="text-[10px] text-zinc-400">{item.id}</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4 font-semibold">Komoditas Bahan</th>
+                      <th className="py-3 px-4 font-semibold">Kategori</th>
+                      <th className="py-3 px-4 font-semibold">Stok Aktual</th>
+                      <th className="py-3 px-4 font-semibold">Kebutuhan Produksi</th>
+                      <th className="py-3 px-4 font-semibold">Status Pasokan</th>
+                      <th className="py-3 px-4 font-semibold text-right">Tindakan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    <tr className={decision && !issuedPO ? "bg-amber-50/40" : ""}>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        Daging Ayam Broiler Segar
+                        <div className="text-[11px] font-mono font-normal text-slate-400">ITEM-AYAM-01</div>
                       </td>
-                      <td className="py-3.5 px-4 font-medium text-zinc-700">
-                        {item.category}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {item.hasProblem ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-900 border border-zinc-300">
-                            {issuedPO ? "Pesanan Selesai" : item.status}
+                      <td className="py-3 px-4">Lauk Utama (Protein)</td>
+                      <td className="py-3 px-4 font-mono font-semibold">80.0 kg</td>
+                      <td className="py-3 px-4 font-mono font-semibold">144.0 kg (Defisit 64 kg)</td>
+                      <td className="py-3 px-4">
+                        {issuedPO ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                            <Check className="h-3 w-3" aria-hidden="true" />
+                            PO Terbit (Siap Kirim)
+                          </span>
+                        ) : decision ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200">
+                            Menunggu Otorisasi
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
-                            <Check className="h-3 w-3" />
-                            {item.status}
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-700 border border-red-200">
+                            Pengiriman Terhambat
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-zinc-900">{item.target}</div>
-                        <div className="text-[10px] text-zinc-500">
-                          {item.need}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-zinc-800">
-                        {item.solution}
-                      </td>
-                      <td className="py-3.5 px-4 text-zinc-700">
-                        {item.responsible}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        {item.hasProblem && decision && !issuedPO ? (
+                      <td className="py-3 px-4 text-right">
+                        {decision && !issuedPO ? (
                           <button
+                            type="button"
                             onClick={() => setIsApprovalModalOpen(true)}
-                            className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-800"
+                            className="rounded-md bg-blue-700 px-3 py-1 font-semibold text-white hover:bg-blue-800"
                           >
                             Setujui
                           </button>
                         ) : (
-                          <span className="text-zinc-400 text-xs">-</span>
+                          <span className="text-slate-400 font-mono">-</span>
                         )}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    <tr>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        Beras Putih Ramos Premium
+                        <div className="text-[11px] font-mono font-normal text-slate-400">ITEM-BERAS-01</div>
+                      </td>
+                      <td className="py-3 px-4">Makanan Pokok</td>
+                      <td className="py-3 px-4 font-mono font-semibold">520.0 kg</td>
+                      <td className="py-3 px-4 font-mono">450.0 kg (Surplus 70 kg)</td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                          Aman Terpenuhi
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right text-slate-400 font-mono">-</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        Telur Ayam Negeri Grade A
+                        <div className="text-[11px] font-mono font-normal text-slate-400">ITEM-TELUR-01</div>
+                      </td>
+                      <td className="py-3 px-4">Lauk Tambahan</td>
+                      <td className="py-3 px-4 font-mono font-semibold">135.0 kg</td>
+                      <td className="py-3 px-4 font-mono">120.0 kg (Surplus 15 kg)</td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                          Aman Terpenuhi
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right text-slate-400 font-mono">-</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        Sayur Wortel & Bayam Segar
+                        <div className="text-[11px] font-mono font-normal text-slate-400">ITEM-WORTEL-01</div>
+                      </td>
+                      <td className="py-3 px-4">Sayuran Sehat</td>
+                      <td className="py-3 px-4 font-mono font-semibold">90.0 kg</td>
+                      <td className="py-3 px-4 font-mono">85.0 kg (Surplus 5 kg)</td>
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                          Tiba Besok Jam 04.00
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right text-slate-400 font-mono">-</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
-        </main>
-      </div>
+        )}
 
-      {/* =========================================================================
-          3. DIALOG PERSETUJUAN KEPALA SPPG (SEDERHANA & JELAS)
-      ========================================================================= */}
-      {isApprovalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-zinc-200">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <div className="font-bold text-zinc-900 text-sm">
-                Persetujuan Pesanan Pengganti (Kepala SPPG)
+        {/* ===================================================================
+            TAB 2: ASISTEN PERCAKAPAN INTELIJEN RESILIOAI
+        =================================================================== */}
+        {activeTab === "chat" && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+            {/* Panel Kiri: Panduan & Pintasan Instruksi */}
+            <div className="space-y-4 lg:col-span-1">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                  <Bot className="h-4 w-4 text-blue-700" aria-hidden="true" />
+                  <span className="text-xs font-bold text-slate-900">Pintasan Instruksi SPPG</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Pilih skenario operasional di bawah untuk mengirim instruksi otomatis ke mesin asisten:
+                </p>
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendChatMessage("Katalog rekanan supplier kita saat ini ada apa saja ya?")}
+                    className="w-full text-left rounded-lg border border-slate-200 p-2.5 text-xs hover:border-blue-600 hover:bg-blue-50/30 transition"
+                  >
+                    <div className="font-semibold text-slate-900">Katalog Rekanan Aktif</div>
+                    <div className="text-[11px] text-slate-500">Cek daftar rekanan dan status Halal</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendChatMessage("Cek stok gudang dan sisa ruang pendingin freezer saat ini")}
+                    className="w-full text-left rounded-lg border border-slate-200 p-2.5 text-xs hover:border-blue-600 hover:bg-blue-50/30 transition"
+                  >
+                    <div className="font-semibold text-slate-900">Cek Inventaris & Freezer</div>
+                    <div className="text-[11px] text-slate-500">Pantau sisa kapasitas ruang dingin</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendChatMessage(
+                        "Daftarkan supplier baru CV Barokah Tahu, komoditas tahu, harga Rp 18.000, kapasitas 200 kg, halal ID3211"
+                      )
+                    }
+                    className="w-full text-left rounded-lg border border-slate-200 p-2.5 text-xs hover:border-blue-600 hover:bg-blue-50/30 transition"
+                  >
+                    <div className="font-semibold text-slate-900">Daftarkan Rekanan Tahu Baru</div>
+                    <div className="text-[11px] text-slate-500">Simulasi pendaftaran bertahap (HITL)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendChatMessage(
+                        "Armada supplier ayam utama kita PT Unggas Sejahtera mogok karena banjir, tolong mitigasi daruratnya!"
+                      )
+                    }
+                    className="w-full text-left rounded-lg border border-slate-200 p-2.5 text-xs hover:border-blue-600 hover:bg-blue-50/30 transition"
+                  >
+                    <div className="font-semibold text-slate-900">Lapor Insiden Disrupsi</div>
+                    <div className="text-[11px] text-slate-500">Kalkulasi defisit dan rekomendasi cadangan</div>
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => setIsApprovalModalOpen(false)}
-                className="rounded-md p-1 text-zinc-400 hover:text-zinc-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
 
-            <div className="mt-4 space-y-4">
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Bahan yang Dibeli:</span>
-                  <span className="font-bold text-zinc-900">Daging Ayam Potong Segar</span>
+            {/* Panel Kanan: Kotak Percakapan Asisten */}
+            <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-xs lg:col-span-3 h-[620px]">
+              {/* Header Chat */}
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50/50">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-white">
+                    <Bot className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">ResilioAI Conversational Agent</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Terhubung ke API Backend Resmi (Hybrid LangGraph & Deterministic Engine)
+                    </p>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Pemasok Pengganti:</span>
-                  <span className="font-bold text-zinc-900">
-                    PT Berkah Unggas Jaya (100% Halal)
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Harga Satuan:</span>
-                  <span className="font-bold text-zinc-900">
-                    Rp 38.000 / kg (Hemat Rp 2.000 dari pagu)
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-500">Cara Pengiriman:</span>
-                  <span className="font-semibold text-zinc-900">
-                    2 Kali (20 kg Sore Ini + 44 kg Subuh Besok)
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                  Jumlah yang Disetujui untuk Dipesan (kg)
-                </label>
-                <input
-                  type="number"
-                  value={approvedQty}
-                  onChange={(e) => setApprovedQty(Number(e.target.value))}
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                />
-                <span className="mt-1 block text-[11px] text-zinc-500">
-                  Kekurangan stok di dapur: 64 kg.
+                <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                  Online
                 </span>
               </div>
 
+              {/* Area Pesan Chat */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/30">
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start gap-3 ${
+                      msg.sender === "user" ? "flex-row-reverse" : "flex-row"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        msg.sender === "user"
+                          ? "bg-slate-900 text-white"
+                          : "bg-blue-700 text-white shadow-xs"
+                      }`}
+                    >
+                      {msg.sender === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                    </div>
+
+                    <div
+                      className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed ${
+                        msg.sender === "user"
+                          ? "bg-slate-900 text-white shadow-xs"
+                          : "bg-white border border-slate-200 text-slate-800 shadow-xs"
+                      }`}
+                    >
+                      <div className="whitespace-pre-line">{msg.text}</div>
+
+                      {/* Kartu Aksi Konfirmasi (Jika Memerlukan Otorisasi Pimpinan) */}
+                      {msg.actionRequired === "APPROVAL_PENDING" && (
+                        <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSendChatMessage("Setuju, tolong daftarkan rekanan ini")}
+                            className="rounded-lg bg-emerald-700 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-800 transition"
+                          >
+                            Setujui & Simpan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSendChatMessage("Batal, jangan disimpan")}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition"
+                          >
+                            Batalkan
+                          </button>
+                        </div>
+                      )}
+
+                      <div
+                        className={`mt-1.5 text-[10px] ${
+                          msg.sender === "user" ? "text-slate-400 text-right" : "text-slate-400"
+                        }`}
+                      >
+                        {msg.timestamp}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {isChatSending && (
+                  <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-700" />
+                    <span>ResilioAI Agent sedang menganalisis data operasional...</span>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Input Chat Box */}
+              <div className="border-t border-slate-200 p-3 bg-white">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendChatMessage();
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ketik instruksi untuk Kepala SPPG (misal: 'Daftarkan supplier baru...', 'Cek sisa freezer')..."
+                    className="flex-1 rounded-lg border border-slate-300 px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-hidden"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || isChatSending}
+                    className="flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                  >
+                    <span>Kirim</span>
+                    <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================================
+            TAB 3: KATALOG REKANAN SUPPLIER & INVENTARIS MASTER
+        =================================================================== */}
+        {activeTab === "suppliers" && (
+          <div className="space-y-6">
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Master Katalog Rekanan Supplier Terdaftar (SPPG Wilayah I)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Mematuhi standar verifikasi sertifikasi Halal UU JPH No. 33/2014 & Pagu Anggaran SOP BGN
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Filter:</span>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierFilter("ALL")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      supplierFilter === "ALL"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Semua ({mockSuppliers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierFilter("HALAL")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      supplierFilter === "HALAL"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Halal Terverifikasi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierFilter("CHICKEN")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      supplierFilter === "CHICKEN"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Daging Ayam
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4 font-semibold">Nama Rekanan / ID</th>
+                      <th className="py-3 px-4 font-semibold">Komoditas</th>
+                      <th className="py-3 px-4 font-semibold">Sertifikasi Halal</th>
+                      <th className="py-3 px-4 font-semibold">Harga Penawaran</th>
+                      <th className="py-3 px-4 font-semibold">Kapasitas Harian</th>
+                      <th className="py-3 px-4 font-semibold">Estimasi Tiba & Jarak</th>
+                      <th className="py-3 px-4 font-semibold text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredSuppliers.map((s) => (
+                      <tr key={s.supplier_id} className="hover:bg-slate-50/50">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900">{s.supplier_name}</div>
+                          <div className="font-mono text-[11px] text-slate-400">{s.supplier_id}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-slate-800">{s.commodity}</span>
+                          <div className="text-[11px] text-slate-400">{s.category}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {s.halal_certified ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                                <Check className="h-3 w-3" aria-hidden="true" />
+                                Terverifikasi
+                              </span>
+                              {s.halal_cert_number && (
+                                <div className="font-mono text-[10px] text-slate-400 mt-0.5">
+                                  {s.halal_cert_number}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                              Non-Halal (Non-Prioritas)
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                          Rp {s.unit_price_idr.toLocaleString("id-ID")} / kg
+                        </td>
+                        <td className="py-3 px-4 font-mono font-semibold">
+                          {s.daily_capacity_kg} kg/hari
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {s.lead_time_hours} jam ({s.distance_km} km)
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                            Aktif
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        )}
+      </main>
+
+      {/* =====================================================================
+          3. MODAL PERSETUJUAN KEPALA SPPG (HUMAN-IN-THE-LOOP)
+      ===================================================================== */}
+      {isApprovalModalOpen && decision && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="approval-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-fadeIn"
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                  Catatan Persetujuan
+                <h3 id="approval-modal-title" className="font-bold text-slate-900 text-sm">
+                  Otorisasi Pengadaan Darurat (Kepala SPPG)
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Tiket Insiden: <span className="font-mono">{decision.incident_id}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsApprovalModalOpen(false)}
+                className="rounded-md p-1 text-slate-400 hover:text-slate-600"
+                aria-label="Tutup jendela otorisasi"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4 text-xs">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Komoditas yang Dibeli:</span>
+                  <span className="font-bold text-slate-900">Daging Ayam Broiler Segar</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Rekanan Pengganti:</span>
+                  <span className="font-bold text-slate-900">
+                    {decision.recommended_procurement?.supplier_name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Harga Penawaran:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    Rp {decision.recommended_procurement?.unit_price_idr.toLocaleString("id-ID")} / kg
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200/60 pt-2">
+                  <span className="text-slate-500">Total Kuantitas Disetujui:</span>
+                  <span className="font-mono font-bold text-blue-900">{approvedQty} kg</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Total Estimasi Anggaran:</span>
+                  <span className="font-mono font-bold text-emerald-800">
+                    Rp {(approvedQty * (decision.recommended_procurement?.unit_price_idr || 0)).toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="approver-notes" className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Catatan Otorisasi Pimpinan SPPG:
                 </label>
                 <textarea
+                  id="approver-notes"
+                  rows={2}
                   value={approverNotes}
                   onChange={(e) => setApproverNotes(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                ></textarea>
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="rounded-lg bg-blue-50/70 p-3 text-[11px] text-blue-800 border border-blue-200 leading-relaxed">
+                Taktik pengiriman bertahap (20 kg sore ini ke freezer, 44 kg subuh langsung olah) akan otomatis
+                diterbitkan ke dalam Purchase Order resmi.
               </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-zinc-100 pt-4">
+            <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
               <button
+                type="button"
                 onClick={() => setIsApprovalModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-zinc-600 hover:text-zinc-900"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
               >
                 Batal
               </button>
               <button
-                onClick={handleApprove}
-                className="rounded-lg bg-zinc-900 px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-zinc-800 active:scale-95"
+                type="button"
+                onClick={handleApprovePO}
+                className="rounded-lg bg-emerald-700 px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-emerald-800 active:scale-95"
               >
-                Setujui & Buat Surat Pesanan
+                Setujui & Terbitkan Surat Pesanan
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* =========================================================================
-          4. MODAL SURAT PESANAN BERHASIL DIBUAT
-      ========================================================================= */}
+      {/* =====================================================================
+          4. MODAL SURAT PESANAN RESMI (PO ISSUED)
+      ===================================================================== */}
       {isPoModalOpen && issuedPO && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-2xl border border-zinc-200">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-900">
-              <CheckCircle2 className="h-6 w-6" />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="po-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-fadeIn"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-2xl border border-slate-200">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
             </div>
-            <h3 className="text-base font-bold text-zinc-900">
-              Surat Pesanan Resmi Berhasil Diterbitkan!
+            <h3 id="po-modal-title" className="text-base font-bold text-slate-900">
+              Surat Pesanan Resmi Berhasil Diterbitkan
             </h3>
-            <p className="mt-1 text-xs text-zinc-500">
-              Pemasok telah menerima notifikasi dan siap mengantar bahan sesuai jadwal.
+            <p className="mt-1 text-xs text-slate-500">
+              Rekanan pemasok telah menerima notifikasi dan siap mengantar bahan sesuai jadwal bertahap.
             </p>
 
-            <div className="my-5 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-left text-xs">
+            <div className="my-5 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left text-xs">
               <div className="flex justify-between">
-                <span className="text-zinc-500">Nomor Pesanan:</span>
-                <span className="font-bold text-zinc-900">
-                  {issuedPO.po_number}
+                <span className="text-slate-500">Nomor Dokumen PO:</span>
+                <span className="font-mono font-bold text-blue-900">{issuedPO.po_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Pemasok Terpilih:</span>
+                <span className="font-bold text-slate-900">
+                  {issuedPO.supplier_name || "PT Berkah Unggas Jaya"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500">Disetujui Oleh:</span>
-                <span className="font-semibold text-zinc-900">
-                  {issuedPO.approver_name}
+                <span className="text-slate-500">Kuantitas Pasokan:</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {issuedPO.approved_qty_kg || 64.0} kg
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500">Jumlah Pesanan:</span>
-                <span className="font-bold text-zinc-900">
-                  {issuedPO.approved_qty_kg} kg
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Waktu Terbit:</span>
-                <span className="text-zinc-600">
-                  {new Date(issuedPO.generated_at).toLocaleString("id-ID")}
+                <span className="text-slate-500">Otorisator:</span>
+                <span className="font-semibold text-slate-800">
+                  {issuedPO.approver_name || "Budi Santoso, S.T. (Kepala SPPG)"}
                 </span>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={() => setIsPoModalOpen(false)}
-              className="w-full rounded-lg bg-zinc-900 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800 transition"
+              className="w-full rounded-lg bg-slate-900 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 transition"
             >
-              Tutup & Kembali ke Tampilan Utama
+              Tutup & Kembali ke Dasbor
             </button>
           </div>
         </div>
