@@ -63,3 +63,4 @@
    - Verified supplier registry with Halal status and SOP price comparison.
 5. **Zone D: Human-in-the-Loop Gatekeeper Modal:**
    - Actionable preview data card with one-click authorization or modification.
+
