@@ -23,7 +23,11 @@ class DataLayerService:
         self._portions = portion_requirements if portion_requirements is not None else PORTION_REQUIREMENTS
 
     def get_inventory_item(self, item_id: str) -> Optional[InventoryItem]:
-        """Mengambil data inventaris bahan pangan berdasarkan item_id."""
+        """Mengambil data inventaris bahan pangan berdasarkan item_id langsung dari basis data SQLite."""
+        from app.data.sqlite_db import get_inventory_item_by_id
+        db_item = get_inventory_item_by_id(item_id)
+        if db_item:
+            return InventoryItem.model_validate(db_item)
         return self._inventory.get(item_id)
 
     def get_portion_ratio(self, item_id: str) -> float:
@@ -95,7 +99,14 @@ class DataLayerService:
         eligible: List[SupplierRecord] = []
         target_cat = category.strip().upper()
 
-        for supplier in self._suppliers.values():
+        # Ambil pool rekanan langsung dari SQLite resmi
+        try:
+            from app.data.sqlite_db import get_all_suppliers
+            candidate_list = [SupplierRecord.model_validate(s) for s in get_all_suppliers(include_inactive=False)]
+        except Exception:
+            candidate_list = list(self._suppliers.values())
+
+        for supplier in candidate_list:
             # 0. Status keaktifan rekanan
             if not getattr(supplier, "is_active", True):
                 continue

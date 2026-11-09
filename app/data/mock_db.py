@@ -1,14 +1,29 @@
-import json
+"""
+Modul Data Terpusat SPPG (SQLite Persistent Store Bridge)
+
+Menghubungkan lapisan aplikasi langsung ke basis data relasional SQLite resmi (resilio.db).
+Menjamin ACID compliance, Zero Hallucination, dan meniadakan penggunaan berkas JSON statis di disk.
+"""
+
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+
+from app.data.sqlite_db import (
+    get_all_inventory_items,
+    get_all_suppliers,
+    get_inventory_item_by_id,
+    get_supplier_by_id_from_db,
+    init_sqlite_db,
+    reset_sqlite_to_default,
+    upsert_inventory_item,
+    upsert_supplier,
+)
 from app.models.schemas import InventoryItem, SupplierRecord
 
 DATA_DIR = Path(__file__).resolve().parent
-SUPPLIERS_JSON_PATH = DATA_DIR / "suppliers.json"
-INVENTORY_JSON_PATH = DATA_DIR / "inventory.json"
 
 # ==========================================
-# 1. DEFAULT DATASETS (FALLBACK & SEED)
+# 1. DEFAULT DATASETS (SEED / FALLBACK)
 # ==========================================
 DEFAULT_INVENTORY: Dict[str, Dict] = {
     "ITEM-AYAM-01": {
@@ -99,21 +114,6 @@ DEFAULT_SUPPLIERS: Dict[str, Dict] = {
         "reliability_rating": 96.0,
         "is_active": True,
     },
-    "SUP-ALT-01": {
-        "supplier_id": "SUP-ALT-01",
-        "supplier_name": "CV Berkah Ternak Barokah",
-        "category": "PROTEIN",
-        "commodity": "DAGING_AYAM",
-        "supported_items": ["ITEM-AYAM-01"],
-        "halal_certified": True,
-        "halal_cert_number": "ID32110000543210224",
-        "unit_price_idr": 39500.0,
-        "daily_capacity_kg": 150.0,
-        "lead_time_hours": 3.5,
-        "distance_km": 18.0,
-        "reliability_rating": 92.0,
-        "is_active": True,
-    },
     "SUP-ALT-02": {
         "supplier_id": "SUP-ALT-02",
         "supplier_name": "PT Berkah Unggas Jaya",
@@ -122,54 +122,39 @@ DEFAULT_SUPPLIERS: Dict[str, Dict] = {
         "supported_items": ["ITEM-AYAM-01"],
         "halal_certified": True,
         "halal_cert_number": "ID32110000897650324",
-        "unit_price_idr": 38000.0,
-        "daily_capacity_kg": 120.0,
+        "unit_price_idr": 36500.0,
+        "daily_capacity_kg": 140.0,
         "lead_time_hours": 4.0,
         "distance_km": 22.0,
         "reliability_rating": 95.0,
         "is_active": True,
     },
-    "SUP-ALT-03": {
-        "supplier_id": "SUP-ALT-03",
-        "supplier_name": "UD Ayam Murah Meriah (Uncertified)",
+    "SUP-REG-04": {
+        "supplier_id": "SUP-REG-04",
+        "supplier_name": "CV Berkah Barokah Tahu",
         "category": "PROTEIN",
-        "commodity": "DAGING_AYAM",
-        "supported_items": ["ITEM-AYAM-01"],
-        "halal_certified": False,
-        "halal_cert_number": None,
-        "unit_price_idr": 32000.0,
+        "commodity": "TAHU",
+        "supported_items": ["ITEM-TAHU-01"],
+        "halal_certified": True,
+        "halal_cert_number": "ID32110000789010124",
+        "unit_price_idr": 18000.0,
         "daily_capacity_kg": 200.0,
-        "lead_time_hours": 2.0,
-        "distance_km": 10.0,
-        "reliability_rating": 70.0,
+        "lead_time_hours": 2.5,
+        "distance_km": 14.0,
+        "reliability_rating": 95.0,
         "is_active": True,
     },
-    "SUP-ALT-04": {
-        "supplier_id": "SUP-ALT-04",
-        "supplier_name": "PT Logistik Pangan Antar-Kota",
+    "SUP-REG-05": {
+        "supplier_id": "SUP-REG-05",
+        "supplier_name": "CV Berkah Tempe Alami",
         "category": "PROTEIN",
-        "commodity": "DAGING_AYAM",
-        "supported_items": ["ITEM-AYAM-01"],
+        "commodity": "TEMPE",
+        "supported_items": ["ITEM-TEMPE-01"],
         "halal_certified": True,
-        "halal_cert_number": "ID32110000999990424",
-        "unit_price_idr": 40000.0,
-        "daily_capacity_kg": 250.0,
-        "lead_time_hours": 12.0,
-        "distance_km": 180.0,
-        "reliability_rating": 88.0,
-        "is_active": True,
-    },
-    "SUP-SAPI-01": {
-        "supplier_id": "SUP-SAPI-01",
-        "supplier_name": "PT Lembu Barokah Nusantara",
-        "category": "PROTEIN",
-        "commodity": "DAGING_SAPI",
-        "supported_items": ["ITEM-SAPI-01"],
-        "halal_certified": True,
-        "halal_cert_number": "ID32110000778890524",
-        "unit_price_idr": 128000.0,
-        "daily_capacity_kg": 200.0,
-        "lead_time_hours": 3.0,
+        "halal_cert_number": "ID32110000789010224",
+        "unit_price_idr": 16000.0,
+        "daily_capacity_kg": 180.0,
+        "lead_time_hours": 2.5,
         "distance_km": 15.0,
         "reliability_rating": 94.0,
         "is_active": True,
@@ -203,91 +188,77 @@ PORTION_REQUIREMENTS: Dict[str, float] = {
 
 
 # ==========================================
-# 2. JSON PERSISTENCE & MANAGEMENT ENGINE
+# 2. SQLITE DATA ACCESS & SYNCHRONIZATION
 # ==========================================
-def load_inventory_from_json(filepath: Optional[Path] = None) -> Dict[str, InventoryItem]:
-    """Membaca inventaris dari berkas JSON, atau inisialisasi dari default seed jika belum ada."""
-    target_path = filepath or INVENTORY_JSON_PATH
-    if target_path.exists():
-        try:
-            with open(target_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return {k: InventoryItem.model_validate(v) for k, v in data.items()}
-        except Exception:
-            pass
 
-    # Inisialisasi dari DEFAULT_INVENTORY jika berkas belum ada atau rusak
-    res = {k: InventoryItem.model_validate(v) for k, v in DEFAULT_INVENTORY.items()}
-    save_inventory_to_json(target_path, res)
-    return res
+def load_inventory_from_sqlite() -> Dict[str, InventoryItem]:
+    """Membaca data inventaris aktif langsung dari basis data SQLite resmi."""
+    init_sqlite_db()
+    items = get_all_inventory_items()
+    if not items:
+        # Seed awal jika tabel kosong
+        for v in DEFAULT_INVENTORY.values():
+            upsert_inventory_item(v)
+        items = get_all_inventory_items()
+    return {item["item_id"]: InventoryItem.model_validate(item) for item in items}
+
+
+def load_suppliers_from_sqlite() -> Dict[str, SupplierRecord]:
+    """Membaca katalog rekanan supplier aktif langsung dari basis data SQLite resmi."""
+    init_sqlite_db()
+    sups = get_all_suppliers(include_inactive=True)
+    if not sups:
+        # Seed awal jika tabel kosong
+        for v in DEFAULT_SUPPLIERS.values():
+            upsert_supplier(v)
+        sups = get_all_suppliers(include_inactive=True)
+    return {s["supplier_id"]: SupplierRecord.model_validate(s) for s in sups}
+
+
+# Compatibility wrappers (mengalihkan persistensi ke SQLite secara murni)
+def load_inventory_from_json(filepath: Optional[Path] = None) -> Dict[str, InventoryItem]:
+    """Wrapper kompatibilitas: membaca inventaris langsung dari SQLite."""
+    return load_inventory_from_sqlite()
 
 
 def load_suppliers_from_json(filepath: Optional[Path] = None) -> Dict[str, SupplierRecord]:
-    """Membaca katalog supplier dari berkas JSON, atau inisialisasi dari default seed jika belum ada."""
-    target_path = filepath or SUPPLIERS_JSON_PATH
-    if target_path.exists():
-        try:
-            with open(target_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return {k: SupplierRecord.model_validate(v) for k, v in data.items()}
-        except Exception:
-            pass
-
-    # Inisialisasi dari DEFAULT_SUPPLIERS jika berkas belum ada atau rusak
-    res = {k: SupplierRecord.model_validate(v) for k, v in DEFAULT_SUPPLIERS.items()}
-    save_suppliers_to_json(target_path, res)
-    return res
+    """Wrapper kompatibilitas: membaca rekanan langsung dari SQLite."""
+    return load_suppliers_from_sqlite()
 
 
 def save_inventory_to_json(filepath: Optional[Path] = None, data: Optional[Dict[str, InventoryItem]] = None) -> None:
-    """Menyimpan data inventaris aktif ke berkas JSON dengan format rapi (indent=2)."""
-    target_path = filepath or INVENTORY_JSON_PATH
+    """Wrapper kompatibilitas: menyimpan inventaris langsung ke basis data SQLite."""
     source = data if data is not None else INVENTORY_DB
-    dumped = {k: v.model_dump() for k, v in source.items()}
-    with open(target_path, "w", encoding="utf-8") as f:
-        json.dump(dumped, f, indent=2, ensure_ascii=False)
+    for v in source.values():
+        upsert_inventory_item(v.model_dump())
 
 
 def save_suppliers_to_json(filepath: Optional[Path] = None, data: Optional[Dict[str, SupplierRecord]] = None) -> None:
-    """Menyimpan data supplier aktif ke berkas JSON dengan format rapi (indent=2) dan sinkronisasi ke SQLite."""
-    target_path = filepath or SUPPLIERS_JSON_PATH
+    """Wrapper kompatibilitas: menyimpan rekanan langsung ke basis data SQLite."""
     source = data if data is not None else SUPPLIERS_DB
-    dumped = {k: v.model_dump() for k, v in source.items()}
-    with open(target_path, "w", encoding="utf-8") as f:
-        json.dump(dumped, f, indent=2, ensure_ascii=False)
-
-    try:
-        from app.data.sqlite_db import upsert_supplier
-        for item in source.values():
-            upsert_supplier(item.model_dump())
-    except Exception:
-        pass
+    for v in source.values():
+        upsert_supplier(v.model_dump())
 
 
 def reload_db_from_json() -> None:
-    """Memperbarui memori INVENTORY_DB dan SUPPLIERS_DB dari berkas JSON."""
-    inv = load_inventory_from_json()
+    """Memperbarui memori INVENTORY_DB dan SUPPLIERS_DB dari basis data SQLite."""
+    inv = load_inventory_from_sqlite()
     INVENTORY_DB.clear()
     INVENTORY_DB.update(inv)
 
-    sups = load_suppliers_from_json()
+    sups = load_suppliers_from_sqlite()
     SUPPLIERS_DB.clear()
     SUPPLIERS_DB.update(sups)
 
 
 def reset_db_to_default() -> None:
-    """Mereset data inventaris dan supplier kembali ke seed bawaan dan menyimpannya ke JSON."""
-    INVENTORY_DB.clear()
-    INVENTORY_DB.update({k: InventoryItem.model_validate(v) for k, v in DEFAULT_INVENTORY.items()})
-    save_inventory_to_json()
-
-    SUPPLIERS_DB.clear()
-    SUPPLIERS_DB.update({k: SupplierRecord.model_validate(v) for k, v in DEFAULT_SUPPLIERS.items()})
-    save_suppliers_to_json()
+    """Mereset data inventaris dan supplier langsung pada basis data SQLite."""
+    reset_sqlite_to_default()
+    reload_db_from_json()
 
 
 # ==========================================
 # 3. GLOBAL ACTIVE REPOSITORIES
 # ==========================================
-INVENTORY_DB: Dict[str, InventoryItem] = load_inventory_from_json()
-SUPPLIERS_DB: Dict[str, SupplierRecord] = load_suppliers_from_json()
+INVENTORY_DB: Dict[str, InventoryItem] = load_inventory_from_sqlite()
+SUPPLIERS_DB: Dict[str, SupplierRecord] = load_suppliers_from_sqlite()

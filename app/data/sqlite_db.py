@@ -138,12 +138,12 @@ def init_sqlite_db() -> None:
 
         conn.commit()
 
-        # Seed data awal jika tabel kosong
+        # Seed data awal hanya jika database benar-benar baru
         _seed_initial_data(conn)
 
 
 def _seed_initial_data(conn: sqlite3.Connection) -> None:
-    """Penyemaian dataset awal inventaris, supplier, dan dokumen resmi SPPG."""
+    """Penyemaian dataset awal inventaris dan supplier SPPG jika tabel belum terisi."""
     cursor = conn.cursor()
 
     # Cek apakah inventory kosong
@@ -179,24 +179,16 @@ def _seed_initial_data(conn: sqlite3.Connection) -> None:
                 json.dumps(["ITEM-AYAM-01"]), 1, "ID32110000123450124", 37500.0, 300.0, 2.5, 12.0, 96.0, 1, now_str
             ),
             (
-                "SUP-ALT-01", "CV Berkah Ternak Barokah", "PROTEIN", "DAGING_AYAM",
-                json.dumps(["ITEM-AYAM-01"]), 1, "ID32110000543210224", 39500.0, 150.0, 3.5, 18.0, 92.0, 1, now_str
-            ),
-            (
                 "SUP-ALT-02", "PT Berkah Unggas Jaya", "PROTEIN", "DAGING_AYAM",
-                json.dumps(["ITEM-AYAM-01"]), 1, "ID32110000897650324", 38000.0, 120.0, 4.0, 22.0, 95.0, 1, now_str
+                json.dumps(["ITEM-AYAM-01"]), 1, "ID32110000897650324", 36500.0, 140.0, 4.0, 22.0, 95.0, 1, now_str
             ),
             (
-                "SUP-ALT-03", "UD Ayam Murah Meriah (Uncertified)", "PROTEIN", "DAGING_AYAM",
-                json.dumps(["ITEM-AYAM-01"]), 0, None, 32000.0, 200.0, 2.0, 10.0, 75.0, 1, now_str
+                "SUP-REG-04", "CV Berkah Barokah Tahu", "PROTEIN", "TAHU",
+                json.dumps(["ITEM-TAHU-01"]), 1, "ID32110000789010124", 18000.0, 200.0, 2.5, 14.0, 95.0, 1, now_str
             ),
             (
-                "SUP-ALT-04", "CV Peternakan Priangan Luar", "PROTEIN", "DAGING_AYAM",
-                json.dumps(["ITEM-AYAM-01"]), 1, "ID32110000999990424", 40000.0, 250.0, 12.0, 180.0, 88.0, 1, now_str
-            ),
-            (
-                "SUP-SAPI-01", "PT Lembu Barokah Nusantara", "PROTEIN", "DAGING_SAPI",
-                json.dumps(["ITEM-SAPI-01"]), 1, "ID32110000778890524", 128000.0, 200.0, 3.0, 15.0, 94.0, 1, now_str
+                "SUP-REG-05", "CV Berkah Tempe Alami", "PROTEIN", "TEMPE",
+                json.dumps(["ITEM-TEMPE-01"]), 1, "ID32110000789010224", 16000.0, 180.0, 2.5, 15.0, 94.0, 1, now_str
             ),
             (
                 "SUP-TELUR-01", "CV Sumber Telur Mandiri", "PROTEIN", "TELUR_AYAM",
@@ -214,116 +206,88 @@ def _seed_initial_data(conn: sqlite3.Connection) -> None:
             seed_suppliers,
         )
 
-    # Cek apakah circular_letters kosong
-    cursor.execute("SELECT COUNT(*) FROM circular_letters")
-    if cursor.fetchone()[0] == 0:
-        seed_letters = [
-            (
-                "SE-SPPG-2026-001",
-                "042/SE/SPPG-SKB/XI/2026",
-                "Instruksi Mitigasi Defisit Pasokan Daging Ayam Darurat SPPG Sukabumi",
-                "INC-20261105-01",
-                "ITEM-AYAM-01",
-                64.0,
-                "SUP-ALT-02",
-                "PT Berkah Unggas Jaya",
-                "2026-11-05",
-                "Fadhra Dzaki, S.T., M.Kom.",
-                "Kepala Satuan Pelayanan Pemenuhan Gizi (SPPG)",
-                "Menindaklanjuti kegagalan pasokan rekanan utama PT Unggas Sejahtera Nusantara akibat kerusakan armada pendingin, dengan ini diinstruksikan pengalihan pasokan 64 kg daging ayam broiler kepada rekanan cadangan PT Berkah Unggas Jaya dengan mekanisme pengiriman bertahap (staggered) 2 batch @ 32 kg guna menjaga kepatuhan kapasitas penyimpanan dingin (freezer) SPPG.",
-                "ISSUED",
-                "2026-11-05T08:30:00Z",
-            ),
-            (
-                "SE-SPPG-2026-002",
-                "043/SE/SPPG-SKB/XI/2026",
-                "Penetapan Pemasok Beras & Telur Terverifikasi Halal BPJPH Periode Q4 2026",
-                "INC-20261107-02",
-                "ITEM-TELUR-01",
-                100.0,
-                "SUP-TELUR-01",
-                "CV Sumber Telur Mandiri",
-                "2026-11-07",
-                "Fadhra Dzaki, S.T., M.Kom.",
-                "Kepala Satuan Pelayanan Pemenuhan Gizi (SPPG)",
-                "Berdasarkan hasil audit deterministik pemenuhan UU No. 33 Tahun 2014 tentang Jaminan Produk Halal, CV Sumber Telur Mandiri ditetapkan sebagai pemasok resmi komoditas telur ras segar dengan kuota alokasi harian 100 kg dan rating keandalan 93%.",
-                "ISSUED",
-                "2026-11-07T10:15:00Z",
-            ),
-        ]
-        cursor.executemany(
-            """
-            INSERT INTO circular_letters (
-                letter_id, letter_number, title, incident_id, item_id, deficit_kg,
-                supplier_id, supplier_name, issued_date, signer_name, signer_role,
-                content_text, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            seed_letters,
-        )
-
-    # Cek apakah purchase_orders kosong
-    cursor.execute("SELECT COUNT(*) FROM purchase_orders")
-    if cursor.fetchone()[0] == 0:
-        po_logistics_1 = json.dumps({
-            "strategy_type": "SPLIT_DELIVERY",
-            "rationale": "Pengiriman dibagi 2 batch agar tidak melebihi sisa kapasitas freezer SPPG (20 kg sedia).",
-            "batches": [
-                {"batch_no": 1, "qty_kg": 32.0, "eta": "2026-11-05T09:30:00Z"},
-                {"batch_no": 2, "qty_kg": 32.0, "eta": "2026-11-05T13:00:00Z"},
-            ]
-        })
-        po_logistics_2 = json.dumps({
-            "strategy_type": "DIRECT_DELIVERY",
-            "rationale": "Pengiriman langsung 1 batch telur segar untuk jadwal sarapan.",
-            "batches": [
-                {"batch_no": 1, "qty_kg": 100.0, "eta": "2026-11-07T06:00:00Z"},
-            ]
-        })
-        seed_orders = [
-            (
-                "PO-SPPG-2026-001",
-                "INC-20261105-01",
-                "SUP-ALT-02",
-                "PT Berkah Unggas Jaya",
-                "ITEM-AYAM-01",
-                64.0,
-                38000.0,
-                2432000.0,
-                po_logistics_1,
-                "Fadhra Dzaki, S.T., M.Kom.",
-                "APPROVED",
-                "/api/v1/orders/PO-SPPG-2026-001/pdf",
-                "2026-11-05T08:35:00Z",
-            ),
-            (
-                "PO-SPPG-2026-002",
-                "INC-20261107-02",
-                "SUP-TELUR-01",
-                "CV Sumber Telur Mandiri",
-                "ITEM-TELUR-01",
-                100.0,
-                28500.0,
-                2850000.0,
-                po_logistics_2,
-                "Fadhra Dzaki, S.T., M.Kom.",
-                "COMPLETED",
-                "/api/v1/orders/PO-SPPG-2026-002/pdf",
-                "2026-11-07T10:20:00Z",
-            ),
-        ]
-        cursor.executemany(
-            """
-            INSERT INTO purchase_orders (
-                po_number, incident_id, supplier_id, supplier_name, item_id,
-                approved_qty_kg, unit_price_idr, total_amount_idr, logistics_strategy,
-                approver_name, status, po_download_url, generated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            seed_orders,
-        )
-
     conn.commit()
+
+
+# =========================================================================
+# OPERASI SURAT EDARAN & PURCHASE ORDER
+# =========================================================================
+
+def clear_all_circular_letters() -> int:
+    """Mengosongkan seluruh arsip surat edaran dari basis data SQLite."""
+    init_sqlite_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM circular_letters")
+        count = cursor.fetchone()[0]
+        cursor.execute("DELETE FROM circular_letters")
+        conn.commit()
+        return count
+
+
+def clear_all_purchase_orders() -> int:
+    """Mengosongkan seluruh arsip Purchase Order dari basis data SQLite."""
+    init_sqlite_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM purchase_orders")
+        count = cursor.fetchone()[0]
+        cursor.execute("DELETE FROM purchase_orders")
+        conn.commit()
+        return count
+
+
+def clear_all_documents() -> Dict[str, int]:
+    """Mengosongkan seluruh surat edaran dan purchase order secara simultan."""
+    se_count = clear_all_circular_letters()
+    po_count = clear_all_purchase_orders()
+    return {"circular_letters_cleared": se_count, "purchase_orders_cleared": po_count}
+
+
+def delete_circular_letter_by_id(identifier: str) -> bool:
+    """Menghapus satu berkas surat edaran berdasarkan ID atau nomor surat."""
+    init_sqlite_db()
+    ident = identifier.strip()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM circular_letters WHERE letter_id = ? OR letter_number = ?",
+            (ident, ident),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_purchase_order_by_number(po_number: str) -> bool:
+    """Menghapus satu berkas Purchase Order berdasarkan nomor PO."""
+    init_sqlite_db()
+    pno = po_number.strip()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM purchase_orders WHERE po_number = ?",
+            (pno,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_purchase_order_by_number(po_number: str) -> Optional[Dict[str, Any]]:
+    """Mengambil rincian satu berkas Purchase Order berdasarkan nomor PO."""
+    init_sqlite_db()
+    pno = po_number.strip()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM purchase_orders WHERE po_number = ?", (pno,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["logistics_strategy"] = json.loads(d["logistics_strategy"])
+        except Exception:
+            pass
+        return d
 
 
 # =========================================================================
@@ -462,6 +426,59 @@ def get_all_inventory_items() -> List[Dict[str, Any]]:
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_inventory_item_by_id(item_id: str) -> Optional[Dict[str, Any]]:
+    """Mengambil rincian data satu bahan pangan dari SQLite berdasarkan ID atau nama bahan."""
+    init_sqlite_db()
+    ident = item_id.strip()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM inventory WHERE UPPER(item_id) = UPPER(?) OR LOWER(item_name) = LOWER(?)",
+            (ident, ident),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def upsert_inventory_item(item_data: Dict[str, Any]) -> None:
+    """Menyimpan atau memperbarui data bahan pangan inventaris ke basis data SQLite."""
+    init_sqlite_db()
+    now_str = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO inventory (
+                item_id, item_name, category, current_stock_kg, safety_stock_kg,
+                freezer_capacity_kg, freezer_occupied_kg, sop_max_price_per_kg, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                item_data["item_id"],
+                item_data["item_name"],
+                item_data["category"],
+                float(item_data["current_stock_kg"]),
+                float(item_data["safety_stock_kg"]),
+                float(item_data["freezer_capacity_kg"]),
+                float(item_data["freezer_occupied_kg"]),
+                float(item_data["sop_max_price_per_kg"]),
+                item_data.get("updated_at", now_str),
+            ),
+        )
+        conn.commit()
+
+
+def reset_sqlite_to_default() -> None:
+    """Mereset tabel inventaris dan supplier kembali ke seed bawaan langsung di SQLite."""
+    init_sqlite_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM inventory")
+        cursor.execute("DELETE FROM suppliers")
+        conn.commit()
+        _seed_initial_data(conn)
+
+
 def get_all_suppliers(include_inactive: bool = False, commodity: Optional[str] = None) -> List[Dict[str, Any]]:
     """Mengambil katalog rekanan supplier dari SQLite."""
     init_sqlite_db()
@@ -527,6 +544,54 @@ def upsert_supplier(record: Dict[str, Any]) -> None:
             ),
         )
         conn.commit()
+
+
+def deactivate_supplier_in_db(supplier_id: str) -> bool:
+    """Menonaktifkan rekanan di SQLite (is_active = 0 / Soft Delete)."""
+    init_sqlite_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE suppliers SET is_active = 0 WHERE UPPER(supplier_id) = UPPER(?) OR LOWER(supplier_name) = LOWER(?)",
+            (supplier_id.strip(), supplier_id.strip()),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_supplier_permanently_from_db(supplier_id: str) -> bool:
+    """Menghapus baris rekanan secara permanen (Hard Delete) dari SQLite."""
+    init_sqlite_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM suppliers WHERE UPPER(supplier_id) = UPPER(?) OR LOWER(supplier_name) = LOWER(?)",
+            (supplier_id.strip(), supplier_id.strip()),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_supplier_by_id_from_db(supplier_id: str) -> Optional[Dict[str, Any]]:
+    """Mengambil rincian data rekanan supplier dari basis data SQLite."""
+    init_sqlite_db()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM suppliers WHERE UPPER(supplier_id) = UPPER(?) OR LOWER(supplier_name) = LOWER(?)",
+            (supplier_id.strip(), supplier_id.strip()),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["halal_certified"] = bool(d["halal_certified"])
+        d["is_active"] = bool(d["is_active"])
+        try:
+            d["supported_items"] = json.loads(d["supported_items"])
+        except Exception:
+            d["supported_items"] = []
+        return d
 
 
 # =========================================================================

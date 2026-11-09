@@ -62,7 +62,6 @@ class TestDataLayerService(unittest.TestCase):
         self.assertNotIn("SUP-ALT-04", supplier_ids)
 
         # Supplier alternatif halal dan terjangkau harus lolos
-        self.assertIn("SUP-ALT-01", supplier_ids)
         self.assertIn("SUP-ALT-02", supplier_ids)
 
         # Pastikan seluruh supplier yang lolos 100% bersertifikat halal
