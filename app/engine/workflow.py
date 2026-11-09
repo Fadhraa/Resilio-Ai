@@ -245,6 +245,34 @@ def execution_po_node(state: ProcurementWorkflowState) -> dict:
         po_download_url=f"/api/v1/procurement/po/{po_number}.pdf",
     )
 
+    try:
+        from app.data.sqlite_db import save_circular_letter, save_purchase_order
+        save_purchase_order(po.model_dump())
+
+        letter_id = f"SE-SPPG-{po_number.replace('PO-', '')}"
+        letter_num = f"{po_number.split('-')[-1]}/SE/SPPG-DARURAT/{datetime.now(timezone.utc).strftime('%m/%Y')}"
+        save_circular_letter({
+            "letter_id": letter_id,
+            "letter_number": letter_num,
+            "title": f"Surat Edaran Otorisasi Pengadaan Mitigasi Pasokan {state['item_id']}",
+            "incident_id": state["incident_id"],
+            "item_id": state["item_id"],
+            "deficit_kg": approved_qty,
+            "supplier_id": rec.supplier_id,
+            "supplier_name": rec.supplier_name,
+            "issued_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "signer_name": approver_name,
+            "signer_role": "Kepala Satuan Pelayanan Pemenuhan Gizi (SPPG)",
+            "content_text": (
+                f"Berdasarkan hasil analisis kelayakan deterministik dan persetujuan pimpinan, "
+                f"diterbitkan Surat Edaran penetapan pengadaan bahan pangan {state['item_id']} "
+                f"sejumlah {approved_qty} kg kepada {rec.supplier_name} dengan total anggaran Rp {total_amount:,.2f}."
+            ),
+            "status": "ISSUED",
+        })
+    except Exception:
+        pass
+
     step = AuditTrailStep(
         stage="PO_GENERATION",
         status="SUCCESS",

@@ -249,12 +249,19 @@ def save_inventory_to_json(filepath: Optional[Path] = None, data: Optional[Dict[
 
 
 def save_suppliers_to_json(filepath: Optional[Path] = None, data: Optional[Dict[str, SupplierRecord]] = None) -> None:
-    """Menyimpan data supplier aktif ke berkas JSON dengan format rapi (indent=2)."""
+    """Menyimpan data supplier aktif ke berkas JSON dengan format rapi (indent=2) dan sinkronisasi ke SQLite."""
     target_path = filepath or SUPPLIERS_JSON_PATH
     source = data if data is not None else SUPPLIERS_DB
     dumped = {k: v.model_dump() for k, v in source.items()}
     with open(target_path, "w", encoding="utf-8") as f:
         json.dump(dumped, f, indent=2, ensure_ascii=False)
+
+    try:
+        from app.data.sqlite_db import upsert_supplier
+        for item in source.values():
+            upsert_supplier(item.model_dump())
+    except Exception:
+        pass
 
 
 def reload_db_from_json() -> None:

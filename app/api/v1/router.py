@@ -320,3 +320,53 @@ def deactivate_supplier(
         )
     return result
 
+
+# ==========================================
+# 5. DOKUMEN RESMI (SURAT EDARAN & PURCHASE ORDERS)
+# ==========================================
+
+@api_router.get("/circular-letters", summary="Arsip Seluruh Surat Edaran Mitigasi SPPG")
+def list_circular_letters() -> list[dict]:
+    """Mengambil seluruh arsip surat edaran mitigasi pangan dari basis data SQLite."""
+    from app.data.sqlite_db import get_all_circular_letters
+    return get_all_circular_letters()
+
+
+@api_router.get("/circular-letters/{letter_id}", summary="Detail Surat Edaran Mitigasi")
+def get_circular_letter_detail(letter_id: str) -> dict:
+    """Mengambil rincian teks dan metadata satu surat edaran berdasarkan letter_id."""
+    from app.data.sqlite_db import get_circular_letter_by_id
+    letter = get_circular_letter_by_id(letter_id)
+    if not letter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Surat Edaran dengan ID '{letter_id}' tidak ditemukan.",
+        )
+    return letter
+
+
+@api_router.get("/purchase-orders", summary="Arsip Seluruh Purchase Order (PO) Resmi")
+def list_purchase_orders() -> list[dict]:
+    """Mengambil seluruh riwayat purchase order yang telah diotorisasi dari SQLite."""
+    from app.data.sqlite_db import get_all_purchase_orders
+    return get_all_purchase_orders()
+
+
+# ==========================================
+# 6. INVENTARIS GUDANG & RIWAYAT SESI CHAT
+# ==========================================
+
+@api_router.get("/inventory", summary="Monitoring Stok Gudang Inventaris SPPG")
+def list_inventory() -> list[dict]:
+    """Mengambil data inventaris bahan pangan aktif, batas aman, dan kapasitas ruang dingin."""
+    from app.data.sqlite_db import get_all_inventory_items
+    return get_all_inventory_items()
+
+
+@api_router.get("/chat/sessions/{session_id}/history", summary="Riwayat Obrolan Sesi")
+def get_session_history(session_id: str) -> list[dict]:
+    """Mengambil riwayat percakapan untuk sesi tertentu dari basis data SQLite."""
+    from app.data.sqlite_db import get_chat_session_history
+    return get_chat_session_history(session_id)
+
+

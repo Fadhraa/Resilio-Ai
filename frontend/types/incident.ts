@@ -216,4 +216,23 @@ export interface InventoryItem {
   sop_max_price_per_kg: number;
 }
 
+// 17. Kontrak Surat Edaran Mitigasi (Circular Letter)
+export interface CircularLetter {
+  letter_id: string;
+  letter_number: string;
+  title: string;
+  incident_id?: string;
+  item_id?: string;
+  deficit_kg?: number;
+  supplier_id?: string;
+  supplier_name?: string;
+  issued_date: string;
+  signer_name: string;
+  signer_role: string;
+  content_text: string;
+  status: "ISSUED" | "DRAFT" | "ARCHIVED";
+  created_at: string;
+}
+
+
 

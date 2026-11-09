@@ -235,3 +235,85 @@ export const mockInventory: InventoryItem[] = [
     sop_max_price_per_kg: 18000.0,
   },
 ];
+
+export const mockCircularLetters = [
+  {
+    letter_id: "SE-SPPG-2026-001",
+    letter_number: "042/SE/SPPG-SKB/XI/2026",
+    title: "Instruksi Mitigasi Defisit Pasokan Daging Ayam Darurat SPPG Sukabumi",
+    incident_id: "INC-20261105-01",
+    item_id: "ITEM-AYAM-01",
+    deficit_kg: 64.0,
+    supplier_id: "SUP-ALT-02",
+    supplier_name: "PT Berkah Unggas Jaya",
+    issued_date: "2026-11-05",
+    signer_name: "Fadhra Dzaki, S.T., M.Kom.",
+    signer_role: "Kepala Satuan Pelayanan Pemenuhan Gizi (SPPG)",
+    content_text:
+      "Menindaklanjuti kegagalan pasokan rekanan utama PT Unggas Sejahtera Nusantara akibat kerusakan armada pendingin, dengan ini diinstruksikan pengalihan pasokan 64 kg daging ayam broiler kepada rekanan cadangan PT Berkah Unggas Jaya dengan mekanisme pengiriman bertahap (staggered) 2 batch @ 32 kg guna menjaga kepatuhan kapasitas penyimpanan dingin (freezer) SPPG.",
+    status: "ISSUED" as const,
+    created_at: "2026-11-05T08:30:00Z",
+  },
+  {
+    letter_id: "SE-SPPG-2026-002",
+    letter_number: "043/SE/SPPG-SKB/XI/2026",
+    title: "Penetapan Pemasok Beras & Telur Terverifikasi Halal BPJPH Periode Q4 2026",
+    incident_id: "INC-20261107-02",
+    item_id: "ITEM-TELUR-01",
+    deficit_kg: 100.0,
+    supplier_id: "SUP-TELUR-01",
+    supplier_name: "CV Sumber Telur Mandiri",
+    issued_date: "2026-11-07",
+    signer_name: "Fadhra Dzaki, S.T., M.Kom.",
+    signer_role: "Kepala Satuan Pelayanan Pemenuhan Gizi (SPPG)",
+    content_text:
+      "Berdasarkan hasil audit deterministik pemenuhan UU No. 33 Tahun 2014 tentang Jaminan Produk Halal, CV Sumber Telur Mandiri ditetapkan sebagai pemasok resmi komoditas telur ras segar dengan kuota alokasi harian 100 kg dan rating keandalan 93%.",
+    status: "ISSUED" as const,
+    created_at: "2026-11-07T10:15:00Z",
+  },
+];
+
+export const mockPurchaseOrdersList = [
+  {
+    po_number: "PO-SPPG-2026-001",
+    incident_id: "INC-20261105-01",
+    supplier_id: "SUP-ALT-02",
+    supplier_name: "PT Berkah Unggas Jaya",
+    item_id: "ITEM-AYAM-01",
+    approved_qty_kg: 64.0,
+    unit_price_idr: 38000.0,
+    total_amount_idr: 2432000.0,
+    logistics_strategy: {
+      strategy_type: "SPLIT_DELIVERY" as const,
+      rationale: "Pengiriman dibagi 2 batch agar tidak melebihi sisa kapasitas freezer SPPG (20 kg sedia).",
+      batches: [
+        { batch_no: 1, qty_kg: 32.0, eta: "2026-11-05T09:30:00Z" },
+        { batch_no: 2, qty_kg: 32.0, eta: "2026-11-05T13:00:00Z" },
+      ],
+    },
+    approver_name: "Fadhra Dzaki, S.T., M.Kom.",
+    status: "APPROVED",
+    po_download_url: "/api/v1/orders/PO-SPPG-2026-001/pdf",
+    generated_at: "2026-11-05T08:35:00Z",
+  },
+  {
+    po_number: "PO-SPPG-2026-002",
+    incident_id: "INC-20261107-02",
+    supplier_id: "SUP-TELUR-01",
+    supplier_name: "CV Sumber Telur Mandiri",
+    item_id: "ITEM-TELUR-01",
+    approved_qty_kg: 100.0,
+    unit_price_idr: 28500.0,
+    total_amount_idr: 2850000.0,
+    logistics_strategy: {
+      strategy_type: "DIRECT_DELIVERY" as const,
+      rationale: "Pengiriman langsung 1 batch telur segar untuk jadwal sarapan.",
+      batches: [{ batch_no: 1, qty_kg: 100.0, eta: "2026-11-07T06:00:00Z" }],
+    },
+    approver_name: "Fadhra Dzaki, S.T., M.Kom.",
+    status: "COMPLETED",
+    po_download_url: "/api/v1/orders/PO-SPPG-2026-002/pdf",
+    generated_at: "2026-11-07T10:20:00Z",
+  },
+];
+

@@ -197,6 +197,18 @@ class ConversationalAgentManager:
             "content": response.reply,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+        try:
+            from app.data.sqlite_db import record_chat_message
+            record_chat_message(
+                session_id=response.session_id,
+                role="assistant",
+                message=response.reply,
+                intent=response.intent.value if hasattr(response.intent, "value") else str(response.intent),
+                action_required=response.action_required.value if hasattr(response.action_required, "value") else str(response.action_required),
+                preview_data=response.preview_data,
+            )
+        except Exception:
+            pass
         return response
 
     def get_or_create_session(self, session_id: str) -> Dict[str, Any]:
@@ -1590,6 +1602,34 @@ class ConversationalAgentManager:
         session["is_approved"] = True
         session["po_result"] = po
 
+        try:
+            from app.data.sqlite_db import save_circular_letter, save_purchase_order
+            save_purchase_order(po.model_dump())
+
+            letter_id = f"SE-SPPG-{po.po_number.replace('PO-', '')}"
+            letter_num = f"{po.po_number.split('-')[-1]}/SE/SPPG-DARURAT/{datetime.now(timezone.utc).strftime('%m/%Y')}"
+            save_circular_letter({
+                "letter_id": letter_id,
+                "letter_number": letter_num,
+                "title": f"Surat Edaran Otorisasi Pengadaan Mitigasi Pasokan {po.item_id}",
+                "incident_id": po.incident_id,
+                "item_id": po.item_id,
+                "deficit_kg": po.approved_qty_kg,
+                "supplier_id": po.supplier_id,
+                "supplier_name": po.supplier_name,
+                "issued_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "signer_name": request.user_role,
+                "signer_role": "Kepala Satuan Pelayanan Pemenuhan Gizi (SPPG)",
+                "content_text": (
+                    f"Berdasarkan hasil analisis kelayakan deterministik dan persetujuan pimpinan, "
+                    f"diterbitkan Surat Edaran penetapan pengadaan bahan pangan {po.item_id} "
+                    f"sejumlah {po.approved_qty_kg} kg kepada {po.supplier_name} dengan total anggaran Rp {po.total_amount_idr:,.2f}."
+                ),
+                "status": "ISSUED",
+            })
+        except Exception:
+            pass
+
         fallback = (
             f"✅ Otorisasi diterima dari {request.user_role}!\n\n"
             f"Surat Pesanan Resmi telah diterbitkan:\n"
@@ -1660,6 +1700,15 @@ class ConversationalAgentManager:
             "content": user_msg,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+        try:
+            from app.data.sqlite_db import record_chat_message
+            record_chat_message(
+                session_id=request.session_id,
+                role="user",
+                message=user_msg,
+            )
+        except Exception:
+            pass
 
         # Stage 1: AI Cognitive Decision Engine (Gemini 3.5 Flash-Lite)
         decision = self._decide_action(user_msg, session)
