@@ -20,7 +20,7 @@ class StrategicProcurementAgent:
     Bertanggung jawab:
     1. Memilih kandidat rekanan supplier optimal dari daftar yang lolos audit Halal.
     2. Menimbang kendala fisik (kapasitas freezer vs kuantitas defisit).
-    3. Merumuskan taktik pengir1iman (Direct Delivery vs Split Delivery bertahap).
+    3. Merumuskan taktik pengiriman (Direct Delivery vs Split Delivery bertahap).
     4. Menghasilkan narasi justifikasi strategis (didukung LLM Gemini bila API key aktif).
     """
 
