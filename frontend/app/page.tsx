@@ -39,6 +39,114 @@ import {
   mockSuppliers,
 } from "@/data/mockData";
 
+function FormattedMessage({ content }: { content: string }) {
+  if (!content) return null;
+
+  // Bersihkan karakter LaTeX atau math delimiters jika ada
+  const cleanContent = content
+    .replace(/\\\(|\\\)/g, "")
+    .replace(/\\\[|\\\]/g, "")
+    .replace(/\$\$/g, "")
+    .replace(/\$(.*?)\$/g, "$1")
+    .replace(/\\textbf\{(.*?)\}/g, "**$1**")
+    .replace(/\\textit\{(.*?)\}/g, "*$1*");
+
+  const lines = cleanContent.split("\n");
+
+  const parseInline = (text: string) => {
+    const parts: React.ReactNode[] = [];
+    const regex = /(\*\*.*?\*\*|`.*?`|\*.*?\*)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      const token = match[0];
+      if (token.startsWith("**") && token.endsWith("**")) {
+        parts.push(
+          <strong key={match.index} className="font-semibold text-inherit">
+            {token.slice(2, -2)}
+          </strong>,
+        );
+      } else if (token.startsWith("`") && token.endsWith("`")) {
+        parts.push(
+          <code
+            key={match.index}
+            className="rounded bg-black/10 px-1 py-0.5 font-mono text-[11px] text-inherit"
+          >
+            {token.slice(1, -1)}
+          </code>,
+        );
+      } else if (token.startsWith("*") && token.endsWith("*")) {
+        parts.push(
+          <em key={match.index} className="italic text-inherit">
+            {token.slice(1, -1)}
+          </em>,
+        );
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+    return parts;
+  };
+
+  return (
+    <div className="space-y-1.5 leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1" />;
+        }
+
+        if (trimmed === "---") {
+          return <hr key={idx} className="my-2 border-slate-200" />;
+        }
+
+        if (trimmed.startsWith("### ")) {
+          return (
+            <h4 key={idx} className="font-bold text-slate-900 mt-2 mb-1">
+              {parseInline(trimmed.slice(4))}
+            </h4>
+          );
+        }
+
+        // Bullet list (•, *, -)
+        const bulletMatch = trimmed.match(/^[\*\-•]\s+(.*)$/);
+        if (bulletMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-1">
+              <span className="text-blue-600 font-bold select-none leading-5">
+                •
+              </span>
+              <div className="flex-1">{parseInline(bulletMatch[1])}</div>
+            </div>
+          );
+        }
+
+        // Numbered list (1., 2., etc.)
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+        if (numMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-1">
+              <span className="font-semibold text-blue-700 select-none leading-5 min-w-[16px]">
+                {numMatch[1]}.
+              </span>
+              <div className="flex-1">{parseInline(numMatch[2])}</div>
+            </div>
+          );
+        }
+
+        // Regular paragraph
+        return <p key={idx}>{parseInline(line)}</p>;
+      })}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   // =========================================================================
   // 1. STATE NAVIGASI & LAYOUT (GEMINI WEB STYLE)
@@ -61,8 +169,11 @@ export default function DashboardPage() {
           year: "numeric",
         }) +
           ", " +
-          now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) +
-          " WIB"
+          now.toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }) +
+          " WIB",
       );
     };
     update();
@@ -117,7 +228,7 @@ export default function DashboardPage() {
         body: JSON.stringify({
           session_id: sessionId,
           message: userMsg,
-          user_role: "Kepala SPPG",
+          user_role: "Bapak Adam Dzaki (Kepala SPPG)",
         }),
       });
 
@@ -132,6 +243,9 @@ export default function DashboardPage() {
             intent: data.intent,
           },
         ]);
+        if (data.preview_data) {
+          loadData();
+        }
       } else {
         throw new Error("Gagal menerima respons server");
       }
@@ -152,17 +266,17 @@ export default function DashboardPage() {
   // 3. STATE DATA ARSIP (SURAT EDARAN, PO, REKANAN, INVENTARIS)
   // =========================================================================
   const [circularLetters, setCircularLetters] = useState<CircularLetter[]>(
-    mockCircularLetters as CircularLetter[]
+    mockCircularLetters as CircularLetter[],
   );
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderResponse[]>(
-    mockPurchaseOrdersList as PurchaseOrderResponse[]
+    mockPurchaseOrdersList as PurchaseOrderResponse[],
   );
   const [suppliers, setSuppliers] = useState<SupplierRecord[]>(mockSuppliers);
   const [inventory, setInventory] = useState<InventoryItem[]>(mockInventory);
 
   // Filter & Search Dokumen
   const [documentFilter, setDocumentFilter] = useState<"ALL" | "SE" | "PO">(
-    "ALL"
+    "ALL",
   );
   const [searchDocQuery, setSearchDocQuery] = useState("");
 
@@ -172,24 +286,26 @@ export default function DashboardPage() {
     data: any;
   } | null>(null);
 
-  // Ambil data terbaru dari backend proxy saat komponen dimuat
+  // Ambil data terbaru dari backend proxy
+  const loadData = async () => {
+    try {
+      const [resSE, resPO, resSuppliers, resInv] = await Promise.all([
+        fetch("/api/circular-letters").then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/purchase-orders").then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/suppliers").then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/inventory").then((r) => (r.ok ? r.json() : null)),
+      ]);
+      if (resSE && Array.isArray(resSE)) setCircularLetters(resSE);
+      if (resPO && Array.isArray(resPO)) setPurchaseOrders(resPO);
+      if (resSuppliers && Array.isArray(resSuppliers))
+        setSuppliers(resSuppliers);
+      if (resInv && Array.isArray(resInv)) setInventory(resInv);
+    } catch {
+      // Gunakan fallback mockData yang sudah terpasang
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [resSE, resPO, resSuppliers, resInv] = await Promise.all([
-          fetch("/api/circular-letters").then((r) => (r.ok ? r.json() : null)),
-          fetch("/api/purchase-orders").then((r) => (r.ok ? r.json() : null)),
-          fetch("/api/suppliers").then((r) => (r.ok ? r.json() : null)),
-          fetch("/api/inventory").then((r) => (r.ok ? r.json() : null)),
-        ]);
-        if (resSE && Array.isArray(resSE)) setCircularLetters(resSE);
-        if (resPO && Array.isArray(resPO)) setPurchaseOrders(resPO);
-        if (resSuppliers && Array.isArray(resSuppliers)) setSuppliers(resSuppliers);
-        if (resInv && Array.isArray(resInv)) setInventory(resInv);
-      } catch {
-        // Gunakan fallback mockData yang sudah terpasang
-      }
-    };
     loadData();
   }, []);
 
@@ -244,7 +360,9 @@ export default function DashboardPage() {
           <button
             onClick={handleStartNewChat}
             className={`flex items-center gap-3 w-full rounded-2xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium text-sm transition-colors border border-blue-200/60 shadow-xs ${
-              isSidebarOpen ? "px-4 py-3 justify-start" : "h-11 w-11 justify-center p-0 mx-auto"
+              isSidebarOpen
+                ? "px-4 py-3 justify-start"
+                : "h-11 w-11 justify-center p-0 mx-auto"
             }`}
             title="Mulai Percakapan Baru"
           >
@@ -340,12 +458,12 @@ export default function DashboardPage() {
             }`}
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-800 font-semibold text-xs border border-blue-200">
-              FD
+              AD
             </div>
             {isSidebarOpen && (
               <div className="flex flex-col truncate">
                 <span className="text-xs font-semibold text-slate-900 truncate">
-                  Fadhra Dzaki
+                  Bapak Adam Dzaki
                 </span>
                 <span className="text-[11px] text-slate-500 truncate">
                   Kepala SPPG Wilayah I
@@ -363,11 +481,6 @@ export default function DashboardPage() {
         {/* Top Header Bar */}
         <header className="flex h-14 items-center justify-between border-b border-slate-200 px-6 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-              Sistem Siaga Operasional
-            </span>
-            <span className="hidden md:inline text-xs text-slate-400">|</span>
             <span className="hidden md:inline text-xs text-slate-500 font-mono">
               Resilio Cognitive Engine (SQLite ACID)
             </span>
@@ -375,7 +488,9 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <Clock className="h-3.5 w-3.5 text-slate-400" />
-            <span className="font-mono">{currentTime || "Memuat waktu..."}</span>
+            <span className="font-mono">
+              {currentTime || "Memuat waktu..."}
+            </span>
           </div>
         </header>
 
@@ -396,12 +511,13 @@ export default function DashboardPage() {
                         <span>Resilio AI Copilot</span>
                       </div>
                       <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
-                        Selamat bertugas, Bapak/Ibu Kepala SPPG.
+                        Selamat bertugas, Bapak Adam Dzaki.
                       </h1>
                       <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-2xl">
-                        Sistem asistensi kognitif terpadu untuk mendeteksi defisit pangan,
-                        memverifikasi kepatuhan sertifikasi Halal (UU JPH 33/2014),
-                        dan menyusun strategi logistik darurat SPPG secara otomatis.
+                        Sistem asistensi kognitif terpadu untuk mendeteksi
+                        defisit pangan, memverifikasi kepatuhan sertifikasi
+                        Halal (UU JPH 33/2014), dan menyusun strategi logistik
+                        darurat SPPG secara otomatis.
                       </p>
                     </div>
 
@@ -414,7 +530,7 @@ export default function DashboardPage() {
                         <button
                           onClick={() =>
                             handleSendMessage(
-                              "🚨 Laporkan gangguan: Supplier utama PT Unggas Sejahtera Nusantara gagal kirim daging ayam karena kendala armada. Tolong carikan rekanan cadangan yang halal dan buatkan draf mitigasinya."
+                              "🚨 Laporkan gangguan: Supplier utama PT Unggas Sejahtera Nusantara gagal kirim daging ayam karena kendala armada. Tolong carikan rekanan cadangan yang halal dan buatkan draf mitigasinya.",
                             )
                           }
                           className="flex flex-col text-left p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50/50 hover:border-blue-300 transition-all shadow-2xs group"
@@ -426,14 +542,15 @@ export default function DashboardPage() {
                             <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
                           </div>
                           <p className="text-xs font-medium text-slate-800 line-clamp-2">
-                            Laporkan gangguan pasokan ayam potong dan minta solusi mitigasi
+                            Laporkan gangguan pasokan ayam potong dan minta
+                            solusi mitigasi
                           </p>
                         </button>
 
                         <button
                           onClick={() =>
                             handleSendMessage(
-                              "Tolong periksa status stok gudang saat ini, apakah kapasitas freezer kita cukup untuk cadangan stok?"
+                              "Tolong periksa status stok gudang saat ini, apakah kapasitas freezer kita cukup untuk cadangan stok?",
                             )
                           }
                           className="flex flex-col text-left p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50/50 hover:border-blue-300 transition-all shadow-2xs group"
@@ -445,14 +562,15 @@ export default function DashboardPage() {
                             <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
                           </div>
                           <p className="text-xs font-medium text-slate-800 line-clamp-2">
-                            Periksa ketersediaan stok fisik dan sisa kapasitas ruang pendingin
+                            Periksa ketersediaan stok fisik dan sisa kapasitas
+                            ruang pendingin
                           </p>
                         </button>
 
                         <button
                           onClick={() =>
                             handleSendMessage(
-                              "Saya ingin mendaftarkan rekanan baru: CV Berkah Barokah Tahu, komoditas Tahu, harga Rp 18.000 per kg, kapasitas 200 kg per hari, sertifikat Halal ID3211."
+                              "Saya ingin mendaftarkan rekanan baru: CV Berkah Barokah Tahu, komoditas Tahu, harga Rp 18.000 per kg, kapasitas 200 kg per hari, sertifikat Halal ID3211.",
                             )
                           }
                           className="flex flex-col text-left p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-blue-50/50 hover:border-blue-300 transition-all shadow-2xs group"
@@ -464,7 +582,8 @@ export default function DashboardPage() {
                             <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
                           </div>
                           <p className="text-xs font-medium text-slate-800 line-clamp-2">
-                            Daftarkan mitra supplier baru dengan verifikasi pagu SOP otomatis
+                            Daftarkan mitra supplier baru dengan verifikasi pagu
+                            SOP otomatis
                           </p>
                         </button>
                       </div>
@@ -492,10 +611,8 @@ export default function DashboardPage() {
                             : "bg-slate-50 border border-slate-200 text-slate-900 rounded-tl-xs shadow-2xs"
                         }`}
                       >
-                        {/* Teks Pesan */}
-                        <div className="whitespace-pre-line space-y-1">
-                          {msg.text}
-                        </div>
+                        {/* Teks Pesan Terformat (Anti-Slop, Markdown & Bebas Kode LaTeX) */}
+                        <FormattedMessage content={msg.text} />
 
                         {/* Interactive Card: Draf Rekanan Pangan */}
                         {msg.previewData?.draft && (
@@ -510,39 +627,58 @@ export default function DashboardPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <div>
-                                <span className="text-slate-500">Nama Rekanan:</span>
+                                <span className="text-slate-500">
+                                  Nama Rekanan:
+                                </span>
                                 <div className="font-medium text-slate-900">
                                   {msg.previewData.draft.supplier_name}
                                 </div>
                               </div>
                               <div>
-                                <span className="text-slate-500">Komoditas:</span>
+                                <span className="text-slate-500">
+                                  Komoditas:
+                                </span>
                                 <div className="font-medium text-slate-900">
                                   {msg.previewData.draft.commodity}
                                 </div>
                               </div>
                               <div>
-                                <span className="text-slate-500">Penawaran Harga:</span>
+                                <span className="text-slate-500">
+                                  Penawaran Harga:
+                                </span>
                                 <div className="font-mono font-medium text-slate-900">
-                                  Rp {msg.previewData.draft.unit_price_idr?.toLocaleString("id-ID")}/kg
+                                  Rp{" "}
+                                  {msg.previewData.draft.unit_price_idr?.toLocaleString(
+                                    "id-ID",
+                                  )}
+                                  /kg
                                 </div>
                               </div>
                               <div>
-                                <span className="text-slate-500">Kapasitas Harian:</span>
+                                <span className="text-slate-500">
+                                  Kapasitas Harian:
+                                </span>
                                 <div className="font-medium text-slate-900">
-                                  {msg.previewData.draft.daily_capacity_kg} kg/hari
+                                  {msg.previewData.draft.daily_capacity_kg}{" "}
+                                  kg/hari
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 pt-1">
                               <button
-                                onClick={() => handleSendMessage("Setuju, daftarkan rekanan ini.")}
+                                onClick={() =>
+                                  handleSendMessage(
+                                    "Setuju, daftarkan rekanan ini.",
+                                  )
+                                }
                                 className="flex-1 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 transition-colors"
                               >
                                 Otorisasi & Simpan ke Basis Data
                               </button>
                               <button
-                                onClick={() => handleSendMessage("Batal, jangan daftarkan.")}
+                                onClick={() =>
+                                  handleSendMessage("Batal, jangan daftarkan.")
+                                }
                                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                               >
                                 Batalkan
@@ -551,55 +687,394 @@ export default function DashboardPage() {
                           </div>
                         )}
 
-                        {/* Interactive Card: Draf PO & Mitigasi */}
-                        {msg.previewData?.po_result && (
-                          <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3.5 shadow-xs space-y-3">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                              <span className="font-semibold text-xs text-emerald-900">
-                                Dokumen Purchase Order Resmi Diterbitkan
+                        {/* Interactive Card: Draf Multi-Item Purchase Order (Perencanaan Menu Bergizi) */}
+                        {msg.previewData?.confirm_multi_po && (
+                          <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/50 p-3.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                              <span className="font-semibold text-xs text-blue-950 flex items-center gap-1.5">
+                                <FileText className="h-4 w-4 text-blue-700" />
+                                {msg.previewData.confirm_multi_po.title ||
+                                  "Draf Purchase Order Resmi SPPG"}
                               </span>
-                              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                                Otorisasi Sah
+                              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                                Menunggu Otorisasi
                               </span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-slate-500">Nomor Dokumen:</span>
-                                <div className="font-mono font-semibold text-slate-900">
-                                  {msg.previewData.po_result.po_number}
-                                </div>
+
+                            <div className="space-y-2">
+                              {msg.previewData.confirm_multi_po.po_list?.map(
+                                (po: any, pIdx: number) => (
+                                  <div
+                                    key={pIdx}
+                                    className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs space-y-1"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-slate-900">
+                                        {po.supplier_name}
+                                      </span>
+                                      <span className="font-mono text-[11px] font-semibold text-blue-700">
+                                        {po.po_number}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600 pt-0.5">
+                                      <div>
+                                        <span className="text-slate-400">
+                                          Komoditas:{" "}
+                                        </span>
+                                        <span className="font-medium text-slate-800">
+                                          {po.item_name || po.commodity}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400">
+                                          Kuantitas:{" "}
+                                        </span>
+                                        <span className="font-semibold text-slate-900">
+                                          {po.approved_qty_kg} kg
+                                        </span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-slate-400">
+                                          Nilai:{" "}
+                                        </span>
+                                        <span className="font-mono font-semibold text-slate-900">
+                                          Rp{" "}
+                                          {po.total_amount_idr?.toLocaleString(
+                                            "id-ID",
+                                          )}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ),
+                              )}
+
+                              <div className="flex items-center justify-between pt-1 border-t border-blue-100 text-xs">
+                                <span className="font-semibold text-slate-700">
+                                  Total Anggaran Pengadaan:
+                                </span>
+                                <span className="font-mono font-bold text-sm text-blue-800">
+                                  Rp{" "}
+                                  {msg.previewData.confirm_multi_po.total_budget?.toLocaleString(
+                                    "id-ID",
+                                  )}
+                                </span>
                               </div>
-                              <div>
-                                <span className="text-slate-500">Pemasok Terpilih:</span>
-                                <div className="font-medium text-slate-900">
-                                  {msg.previewData.po_result.supplier_name}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-slate-500">Total Kuantitas:</span>
-                                <div className="font-semibold text-slate-900">
-                                  {msg.previewData.po_result.approved_qty_kg} kg
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-slate-500">Nilai Kontrak:</span>
-                                <div className="font-mono font-semibold text-emerald-700">
-                                  Rp {msg.previewData.po_result.total_amount_idr?.toLocaleString("id-ID")}
-                                </div>
-                              </div>
+
+                              {msg.previewData.confirm_multi_po.warning && (
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                  ℹ️ {msg.previewData.confirm_multi_po.warning}
+                                </p>
+                              )}
                             </div>
-                            <button
-                              onClick={() => {
-                                setSelectedDoc({
-                                  type: "PO",
-                                  data: msg.previewData?.po_result,
-                                });
-                              }}
-                              className="w-full rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 transition-colors flex items-center justify-center gap-1.5"
-                            >
-                              <Printer className="h-3.5 w-3.5" />
-                              Buka Dokumen Resmi & Cetak PDF
-                            </button>
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    msg.previewData?.confirm_multi_po
+                                      ?.confirm_command ||
+                                      "Setujui terbitkan seluruh PO pengadaan",
+                                  )
+                                }
+                                className="flex-1 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 transition-colors shadow-2xs cursor-pointer"
+                              >
+                                Setujui & Terbitkan Seluruh PO Resmi
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    msg.previewData?.confirm_multi_po
+                                      ?.cancel_command ||
+                                      "Batal, jangan terbitkan PO",
+                                  )
+                                }
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                              >
+                                Batalkan
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Interactive Card: Penerbitan Multi PO Resmi yang Berhasil Disimpan */}
+                        {msg.previewData?.po_results &&
+                          Array.isArray(msg.previewData.po_results) && (
+                            <div className="mt-4 space-y-2.5">
+                              {msg.previewData.po_results.map(
+                                (poItem: any, idx: number) => (
+                                  <div
+                                    key={idx}
+                                    className="rounded-xl border border-emerald-200 bg-white p-3.5 shadow-xs space-y-2.5"
+                                  >
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                      <span className="font-semibold text-xs text-emerald-900 flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                        Purchase Order Resmi Diterbitkan #
+                                        {idx + 1}
+                                      </span>
+                                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                                        Tersimpan di SQLite
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-slate-500">
+                                          Nomor Dokumen:
+                                        </span>
+                                        <div className="font-mono font-semibold text-slate-900">
+                                          {poItem.po_number}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500">
+                                          Pemasok Terpilih:
+                                        </span>
+                                        <div className="font-medium text-slate-900">
+                                          {poItem.supplier_name}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500">
+                                          Total Kuantitas:
+                                        </span>
+                                        <div className="font-semibold text-slate-900">
+                                          {poItem.approved_qty_kg} kg (
+                                          {poItem.item_name || poItem.item_id})
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500">
+                                          Nilai Kontrak:
+                                        </span>
+                                        <div className="font-mono font-semibold text-emerald-700">
+                                          Rp{" "}
+                                          {poItem.total_amount_idr?.toLocaleString(
+                                            "id-ID",
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() =>
+                                        setSelectedDoc({
+                                          type: "PO",
+                                          data: poItem,
+                                        })
+                                      }
+                                      className="w-full rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Printer className="h-3.5 w-3.5" />
+                                      Buka Dokumen Resmi & Cetak PDF
+                                    </button>
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          )}
+
+                        {/* Interactive Card: Draf PO Tunggal & Mitigasi */}
+                        {msg.previewData?.po_result &&
+                          !msg.previewData?.po_results && (
+                            <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3.5 shadow-xs space-y-3">
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <span className="font-semibold text-xs text-emerald-900">
+                                  Dokumen Purchase Order Resmi Diterbitkan
+                                </span>
+                                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                                  Otorisasi Sah
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-slate-500">
+                                    Nomor Dokumen:
+                                  </span>
+                                  <div className="font-mono font-semibold text-slate-900">
+                                    {msg.previewData.po_result.po_number}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">
+                                    Pemasok Terpilih:
+                                  </span>
+                                  <div className="font-medium text-slate-900">
+                                    {msg.previewData.po_result.supplier_name}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">
+                                    Total Kuantitas:
+                                  </span>
+                                  <div className="font-semibold text-slate-900">
+                                    {msg.previewData.po_result.approved_qty_kg}{" "}
+                                    kg
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">
+                                    Nilai Kontrak:
+                                  </span>
+                                  <div className="font-mono font-semibold text-emerald-700">
+                                    Rp{" "}
+                                    {msg.previewData.po_result.total_amount_idr?.toLocaleString(
+                                      "id-ID",
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setSelectedDoc({
+                                    type: "PO",
+                                    data: msg.previewData?.po_result,
+                                  });
+                                }}
+                                className="w-full rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                                Buka Dokumen Resmi & Cetak PDF
+                              </button>
+                            </div>
+                          )}
+
+                        {/* Interactive Card: Konfirmasi Penghapusan Dokumen (Human-in-the-Loop) */}
+                        {msg.previewData?.confirm_delete && (
+                          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/60 p-3.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-rose-100 pb-2">
+                              <span className="font-semibold text-xs text-rose-900 flex items-center gap-1.5">
+                                <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                                {msg.previewData.confirm_delete.title ||
+                                  "Konfirmasi Penghapusan Dokumen"}
+                              </span>
+                              <span className="rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800 border border-rose-200">
+                                Otorisasi Diperlukan
+                              </span>
+                            </div>
+                            <div className="space-y-1.5 text-xs text-slate-700">
+                              <div>
+                                <span className="text-slate-500 font-medium">
+                                  Target Dokumen:{" "}
+                                </span>
+                                <span className="font-semibold text-slate-900">
+                                  {msg.previewData.confirm_delete.details}
+                                </span>
+                              </div>
+                              {msg.previewData.confirm_delete.warning && (
+                                <p className="text-[11px] text-rose-700 font-medium">
+                                  ⚠️ {msg.previewData.confirm_delete.warning}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    msg.previewData?.confirm_delete
+                                      ?.confirm_command ||
+                                      "Ya, lanjutkan hapus.",
+                                  )
+                                }
+                                className="flex-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors shadow-2xs cursor-pointer"
+                              >
+                                Ya, Hapus Permanen
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    msg.previewData?.confirm_delete
+                                      ?.cancel_command ||
+                                      "Batal, jangan dihapus.",
+                                  )
+                                }
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                              >
+                                Batalkan
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Interactive Card: Konfirmasi Pengelolaan Rekanan (Hapus / Nonaktifkan) */}
+                        {msg.previewData?.confirm_supplier_action && (
+                          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 shadow-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-rose-100 pb-2">
+                              <span className="font-semibold text-xs text-rose-900 flex items-center gap-1.5">
+                                <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                                {msg.previewData.confirm_supplier_action
+                                  .title || "Konfirmasi Pengelolaan Rekanan"}
+                              </span>
+                              <span className="rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-800 border border-rose-200">
+                                Otorisasi Diperlukan
+                              </span>
+                            </div>
+                            <div className="space-y-1.5 text-xs text-slate-700">
+                              <div>
+                                <span className="text-slate-500 font-medium">
+                                  Rekanan:{" "}
+                                </span>
+                                <span className="font-semibold text-slate-900">
+                                  {
+                                    msg.previewData.confirm_supplier_action
+                                      .supplier_name
+                                  }{" "}
+                                  (
+                                  {
+                                    msg.previewData.confirm_supplier_action
+                                      .supplier_id
+                                  }
+                                  )
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 font-medium">
+                                  Komoditas:{" "}
+                                </span>
+                                <span className="font-medium text-slate-900">
+                                  {
+                                    msg.previewData.confirm_supplier_action
+                                      .commodity
+                                  }
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-rose-700 font-medium">
+                                ⚠️ Pilih apakah ingin menghapus data secara
+                                permanen dari basis data SQLite atau
+                                menonaktifkan saja untuk menjaga audit trail.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    `Hapus permanen rekanan ${msg.previewData?.confirm_supplier_action?.supplier_id}`,
+                                  )
+                                }
+                                className="flex-1 min-w-[140px] rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 transition-colors shadow-2xs cursor-pointer"
+                              >
+                                Hapus Permanen (Database)
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    `Nonaktifkan rekanan ${msg.previewData?.confirm_supplier_action?.supplier_id}`,
+                                  )
+                                }
+                                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 transition-colors cursor-pointer"
+                              >
+                                Nonaktifkan Saja (Soft Delete)
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleSendMessage(
+                                    "Batal, jangan hapus rekanan.",
+                                  )
+                                }
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                              >
+                                Batalkan
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -618,7 +1093,10 @@ export default function DashboardPage() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-700 text-white">
                       <Bot className="h-4 w-4 animate-spin" />
                     </div>
-                    <span>Resilio AI sedang menganalisis regulasi & menghitung mitigasi...</span>
+                    <span>
+                      Resilio AI sedang menganalisis regulasi & menghitung
+                      mitigasi...
+                    </span>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -653,7 +1131,8 @@ export default function DashboardPage() {
                   </button>
                 </form>
                 <div className="text-center mt-2 text-[11px] text-slate-400">
-                  Resilio AI memproses keputusan dengan Matrix 7 Parameter Deterministik & Transparansi Regulasi BGN.
+                  Resilio AI memproses keputusan dengan Matrix 7 Parameter
+                  Deterministik & Transparansi Regulasi BGN.
                 </div>
               </div>
             </div>
@@ -671,7 +1150,8 @@ export default function DashboardPage() {
                   Arsip Dokumen Resmi & Purchase Order SPPG
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Daftar seluruh Surat Edaran penetapan mitigasi darurat dan surat pesanan yang telah diotorisasi.
+                  Daftar seluruh Surat Edaran penetapan mitigasi darurat dan
+                  surat pesanan yang telah diotorisasi.
                 </p>
               </div>
 
@@ -733,10 +1213,16 @@ export default function DashboardPage() {
                   {circularLetters
                     .filter(
                       (se) =>
-                        se.title.toLowerCase().includes(searchDocQuery.toLowerCase()) ||
-                        se.letter_number.toLowerCase().includes(searchDocQuery.toLowerCase()) ||
+                        se.title
+                          .toLowerCase()
+                          .includes(searchDocQuery.toLowerCase()) ||
+                        se.letter_number
+                          .toLowerCase()
+                          .includes(searchDocQuery.toLowerCase()) ||
                         (se.supplier_name &&
-                          se.supplier_name.toLowerCase().includes(searchDocQuery.toLowerCase()))
+                          se.supplier_name
+                            .toLowerCase()
+                            .includes(searchDocQuery.toLowerCase())),
                     )
                     .map((se) => (
                       <div
@@ -762,10 +1248,15 @@ export default function DashboardPage() {
 
                         <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
                           <div className="text-xs text-slate-500">
-                            Pemasok: <strong className="text-slate-700">{se.supplier_name || "-"}</strong>
+                            Pemasok:{" "}
+                            <strong className="text-slate-700">
+                              {se.supplier_name || "-"}
+                            </strong>
                           </div>
                           <button
-                            onClick={() => setSelectedDoc({ type: "SE", data: se })}
+                            onClick={() =>
+                              setSelectedDoc({ type: "SE", data: se })
+                            }
                             className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
                           >
                             <FileText className="h-3.5 w-3.5" />
@@ -789,9 +1280,13 @@ export default function DashboardPage() {
                   {purchaseOrders
                     .filter(
                       (po) =>
-                        po.po_number.toLowerCase().includes(searchDocQuery.toLowerCase()) ||
+                        po.po_number
+                          .toLowerCase()
+                          .includes(searchDocQuery.toLowerCase()) ||
                         (po.supplier_name &&
-                          po.supplier_name.toLowerCase().includes(searchDocQuery.toLowerCase()))
+                          po.supplier_name
+                            .toLowerCase()
+                            .includes(searchDocQuery.toLowerCase())),
                     )
                     .map((po) => (
                       <div
@@ -808,11 +1303,20 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <div className="text-sm font-semibold text-slate-900">
-                            Pesanan Pasokan: {po.item_id} ({po.approved_qty_kg} kg)
+                            Pesanan Pasokan: {po.item_id} ({po.approved_qty_kg}{" "}
+                            kg)
                           </div>
                           <div className="text-xs text-slate-600 space-y-1">
-                            <div>Rekanan: <strong>{po.supplier_name}</strong></div>
-                            <div>Nilai Kontrak: <strong className="font-mono text-emerald-700">Rp {po.total_amount_idr?.toLocaleString("id-ID")}</strong></div>
+                            <div>
+                              Rekanan: <strong>{po.supplier_name}</strong>
+                            </div>
+                            <div>
+                              Nilai Kontrak:{" "}
+                              <strong className="font-mono text-emerald-700">
+                                Rp{" "}
+                                {po.total_amount_idr?.toLocaleString("id-ID")}
+                              </strong>
+                            </div>
                           </div>
                         </div>
 
@@ -821,7 +1325,9 @@ export default function DashboardPage() {
                             Otorisator: {po.approver_name}
                           </span>
                           <button
-                            onClick={() => setSelectedDoc({ type: "PO", data: po })}
+                            onClick={() =>
+                              setSelectedDoc({ type: "PO", data: po })
+                            }
                             className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1.5"
                           >
                             <Printer className="h-3.5 w-3.5" />
@@ -846,7 +1352,8 @@ export default function DashboardPage() {
                 Katalog Rekanan Pemasok Bahan Pangan SPPG
               </h2>
               <p className="text-sm text-slate-500">
-                Data mitra supplier terverifikasi sertifikasi Halal BPJPH dan kepatuhan pagu SOP.
+                Data mitra supplier terverifikasi sertifikasi Halal BPJPH dan
+                kepatuhan pagu SOP.
               </p>
             </div>
 
@@ -891,13 +1398,17 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Kapasitas Harian:</span>
+                        <span className="text-slate-400">
+                          Kapasitas Harian:
+                        </span>
                         <span className="font-medium text-slate-900">
                           {sup.daily_capacity_kg} kg/hari
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Waktu Kirim & Jarak:</span>
+                        <span className="text-slate-400">
+                          Waktu Kirim & Jarak:
+                        </span>
                         <span className="font-medium text-slate-900">
                           {sup.lead_time_hours} jam ({sup.distance_km} km)
                         </span>
@@ -935,7 +1446,8 @@ export default function DashboardPage() {
                 Monitoring Stok Gudang & Kapasitas Ruang Pendingin
               </h2>
               <p className="text-sm text-slate-500">
-                Pemantauan fisik stok bahan pangan dan kesiapan ruang penyimpanan dingin SPPG.
+                Pemantauan fisik stok bahan pangan dan kesiapan ruang
+                penyimpanan dingin SPPG.
               </p>
             </div>
 
@@ -943,12 +1455,15 @@ export default function DashboardPage() {
               {inventory.map((item) => {
                 const stockPercent = Math.min(
                   100,
-                  Math.round((item.current_stock_kg / (item.safety_stock_kg * 3)) * 100)
+                  Math.round(
+                    (item.current_stock_kg / (item.safety_stock_kg * 3)) * 100,
+                  ),
                 );
                 const freezerPercent =
                   item.freezer_capacity_kg > 0
                     ? Math.round(
-                        (item.freezer_occupied_kg / item.freezer_capacity_kg) * 100
+                        (item.freezer_occupied_kg / item.freezer_capacity_kg) *
+                          100,
                       )
                     : 0;
 
@@ -971,7 +1486,8 @@ export default function DashboardPage() {
                         {item.item_name}
                       </h4>
                       <div className="text-xs text-slate-500 font-mono">
-                        Pagu Maks SOP: Rp {item.sop_max_price_per_kg?.toLocaleString("id-ID")}/kg
+                        Pagu Maks SOP: Rp{" "}
+                        {item.sop_max_price_per_kg?.toLocaleString("id-ID")}/kg
                       </div>
                     </div>
 
@@ -980,7 +1496,8 @@ export default function DashboardPage() {
                       <div className="flex justify-between">
                         <span className="text-slate-500">Stok Gudang:</span>
                         <span className="font-semibold text-slate-900">
-                          {item.current_stock_kg} kg (Batas Aman: {item.safety_stock_kg} kg)
+                          {item.current_stock_kg} kg (Batas Aman:{" "}
+                          {item.safety_stock_kg} kg)
                         </span>
                       </div>
                       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -999,15 +1516,20 @@ export default function DashboardPage() {
                     {item.freezer_capacity_kg > 0 && (
                       <div className="space-y-1.5 text-xs border-t border-slate-100 pt-3">
                         <div className="flex justify-between">
-                          <span className="text-slate-500">Ruang Dingin (Freezer):</span>
+                          <span className="text-slate-500">
+                            Ruang Dingin (Freezer):
+                          </span>
                           <span className="font-medium text-slate-700">
-                            {item.freezer_occupied_kg} / {item.freezer_capacity_kg} kg ({freezerPercent}%)
+                            {item.freezer_occupied_kg} /{" "}
+                            {item.freezer_capacity_kg} kg ({freezerPercent}%)
                           </span>
                         </div>
                         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
-                              freezerPercent >= 80 ? "bg-amber-500" : "bg-blue-600"
+                              freezerPercent >= 80
+                                ? "bg-amber-500"
+                                : "bg-blue-600"
                             }`}
                             style={{ width: `${freezerPercent}%` }}
                           />
@@ -1044,7 +1566,8 @@ export default function DashboardPage() {
                   SATUAN PELAYANAN PEMENUHAN GIZI (SPPG) WILAYAH I
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Jalan Raya Sukabumi No. 42, Jawa Barat | Layanan Darurat Pangan: (0266) 554321
+                  Jalan Raya Sukabumi No. 42, Jawa Barat | Layanan Darurat
+                  Pangan: (0266) 554321
                 </div>
               </div>
 
@@ -1072,10 +1595,24 @@ export default function DashboardPage() {
                       Rincian Alokasi Pasokan Mitigasi:
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <div>ID Bahan: <strong>{selectedDoc.data.item_id || "-"}</strong></div>
-                      <div>Defisit Ditanggulangi: <strong>{selectedDoc.data.deficit_kg || 0} kg</strong></div>
-                      <div>Rekanan Ditunjuk: <strong>{selectedDoc.data.supplier_name || "-"}</strong></div>
-                      <div>Status Regulasi: <strong className="text-emerald-700">Terverifikasi Halal BPJPH</strong></div>
+                      <div>
+                        ID Bahan:{" "}
+                        <strong>{selectedDoc.data.item_id || "-"}</strong>
+                      </div>
+                      <div>
+                        Defisit Ditanggulangi:{" "}
+                        <strong>{selectedDoc.data.deficit_kg || 0} kg</strong>
+                      </div>
+                      <div>
+                        Rekanan Ditunjuk:{" "}
+                        <strong>{selectedDoc.data.supplier_name || "-"}</strong>
+                      </div>
+                      <div>
+                        Status Regulasi:{" "}
+                        <strong className="text-emerald-700">
+                          Terverifikasi Halal BPJPH
+                        </strong>
+                      </div>
                     </div>
                   </div>
 
@@ -1087,7 +1624,8 @@ export default function DashboardPage() {
                         <strong>Kepala SPPG Wilayah I</strong>
                       </div>
                       <div className="font-bold underline text-slate-950">
-                        {selectedDoc.data.signer_name}
+                        {selectedDoc.data.signer_name ||
+                          "Bapak Adam Dzaki, S.T., M.M."}
                       </div>
                     </div>
                   </div>
@@ -1107,12 +1645,31 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
-                    <div>Pemasok: <strong>{selectedDoc.data.supplier_name}</strong></div>
-                    <div>Komoditas: <strong>{selectedDoc.data.item_id}</strong></div>
-                    <div>Volume Total: <strong>{selectedDoc.data.approved_qty_kg} kg</strong></div>
-                    <div>Harga Satuan: <strong>Rp {selectedDoc.data.unit_price_idr?.toLocaleString("id-ID")}/kg</strong></div>
+                    <div>
+                      Pemasok: <strong>{selectedDoc.data.supplier_name}</strong>
+                    </div>
+                    <div>
+                      Komoditas: <strong>{selectedDoc.data.item_id}</strong>
+                    </div>
+                    <div>
+                      Volume Total:{" "}
+                      <strong>{selectedDoc.data.approved_qty_kg} kg</strong>
+                    </div>
+                    <div>
+                      Harga Satuan:{" "}
+                      <strong>
+                        Rp{" "}
+                        {selectedDoc.data.unit_price_idr?.toLocaleString(
+                          "id-ID",
+                        )}
+                        /kg
+                      </strong>
+                    </div>
                     <div className="col-span-2 text-sm font-bold text-emerald-800 pt-1 border-t border-slate-200">
-                      Total Nilai Kontrak: Rp {selectedDoc.data.total_amount_idr?.toLocaleString("id-ID")}
+                      Total Nilai Kontrak: Rp{" "}
+                      {selectedDoc.data.total_amount_idr?.toLocaleString(
+                        "id-ID",
+                      )}
                     </div>
                   </div>
 
@@ -1122,15 +1679,21 @@ export default function DashboardPage() {
                         Jadwal Distribusi Bertahap (Split Delivery):
                       </div>
                       <div className="space-y-1">
-                        {selectedDoc.data.logistics_strategy.batches.map((b: any) => (
-                          <div
-                            key={b.batch_no}
-                            className="flex items-center justify-between border border-slate-100 rounded-lg p-2 bg-white"
-                          >
-                            <span>Batch #{b.batch_no} ({b.qty_kg} kg)</span>
-                            <span className="font-mono text-slate-500">Estimasi Tiba: {b.eta}</span>
-                          </div>
-                        ))}
+                        {selectedDoc.data.logistics_strategy.batches.map(
+                          (b: any) => (
+                            <div
+                              key={b.batch_no}
+                              className="flex items-center justify-between border border-slate-100 rounded-lg p-2 bg-white"
+                            >
+                              <span>
+                                Batch #{b.batch_no} ({b.qty_kg} kg)
+                              </span>
+                              <span className="font-mono text-slate-500">
+                                Estimasi Tiba: {b.eta}
+                              </span>
+                            </div>
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
@@ -1143,7 +1706,8 @@ export default function DashboardPage() {
                         <strong>Kepala Satuan Pelayanan Pemenuhan Gizi</strong>
                       </div>
                       <div className="font-bold underline text-slate-950">
-                        {selectedDoc.data.approver_name || "Fadhra Dzaki, S.T., M.Kom."}
+                        {selectedDoc.data.approver_name ||
+                          "Bapak Adam Dzaki, S.T., M.M."}
                       </div>
                     </div>
                   </div>
