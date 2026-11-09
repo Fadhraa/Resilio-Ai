@@ -3,12 +3,11 @@
 /**
  * ============================================================================
  * RESILIO-AI TYPE CONTRACTS
- * Sinkron 1:1 dengan Backend Schemas (app/models/schemas.py)
+ * Sinkron 1:1 dengan Backend Schemas di branch Ai (app/models/schemas.py)
  * ============================================================================
  */
 
 // 1. Tipe Gangguan Rantai Pasok (Disruption Type)
-// Mengkategorikan jenis masalah yang terjadi di lapangan
 export type DisruptionType = 
   | "SUPPLIER_DISRUPTION"   // Pembatalan/keterlambatan dari supplier
   | "WEATHER_FLOOD"         // Cuaca ekstrem/banjir di jalur logistik
@@ -17,20 +16,62 @@ export type DisruptionType =
   | "LOGISTICS_BREAKDOWN";  // Kerusakan armada angkut di jalan
 
 // 2. Status Evaluasi Kelayakan (Feasibility Status)
-// Ditentukan oleh Feasibility Scoring Engine (Matrix 7 Parameter)
 export type FeasibilityStatus = 
   | "FEASIBLE"                 // Skor >= 80: Lolos penuh, aman dieksekusi
   | "FEASIBLE_WITH_CONDITIONS" // Skor 60-79: Wajib mitigasi split delivery
   | "NOT_FEASIBLE";            // Skor < 60: Ditolak sistem (memicu retry)
 
 // 3. Jenis Strategi Logistik (Strategy Type)
-// Ditentukan oleh Strategic Procurement Agent (LLM)
 export type StrategyType = 
   | "DIRECT_DELIVERY"   // Pengiriman langsung 1x jika freezer cukup
   | "SPLIT_DELIVERY"    // Pengiriman bertahap (batch) jika freezer terbatas
   | "BUFFER_STAGGERED"; // Pengiriman berkala dengan safety buffer
 
-// 4. Request Payload untuk Memicu Insiden (POST /api/v1/incidents/trigger)
+// 4. Model Domain: Inventaris Bahan Pangan (InventoryItem)
+export interface InventoryItem {
+  item_id: string;
+  item_name: string;
+  category: "PROTEIN" | "STAPLE" | "VEGETABLE";
+  current_stock_kg: number;
+  safety_stock_kg: number;
+  freezer_capacity_kg: number;
+  freezer_occupied_kg: number;
+  sop_max_price_per_kg: number;
+}
+
+// 5. Model Domain: Rekanan Supplier (SupplierRecord)
+export interface SupplierRecord {
+  supplier_id: string;
+  supplier_name: string;
+  category: string;
+  commodity: string;
+  supported_items: string[];
+  halal_certified: boolean;
+  halal_cert_number: string | null;
+  unit_price_idr: number;
+  daily_capacity_kg: number;
+  lead_time_hours: number;
+  distance_km: number;
+  reliability_rating: number;
+  is_active: boolean;
+}
+
+// Payload untuk Pendaftaran Supplier Baru (SupplierCreateRequest)
+export interface SupplierCreateRequest {
+  supplier_name: string;
+  category: string;
+  commodity: string;
+  supported_items: string[];
+  halal_certified: boolean;
+  halal_cert_number?: string;
+  unit_price_idr: number;
+  daily_capacity_kg: number;
+  lead_time_hours?: number;
+  distance_km?: number;
+  reliability_rating?: number;
+}
+
+// 6. Request Payload untuk Memicu Insiden (POST /api/v1/incidents/trigger)
 export interface IncidentTriggerRequest {
   item_id: string;                      // ID bahan pangan (misal: "ITEM-AYAM-01")
   disruption_type: DisruptionType;       // Jenis gangguan
@@ -39,40 +80,39 @@ export interface IncidentTriggerRequest {
   incident_notes?: string;               // Catatan bebas laporan lapangan
 }
 
-// 5. Response Awal Pemicu Insiden (Synchronous Ack)
+// 7. Response Awal Pemicu Insiden (Synchronous Ack)
 export interface IncidentTriggerResponse {
   incident_id: string;  // ID unik tiket insiden (misal: "INC-2026-001")
   status: string;       // "PROCESSING"
   stream_url: string;   // Endpoint SSE untuk memantau progress agent
 }
 
-// 6. Matriks Rincian Skor 7 Parameter Deterministik
-// Formula: Total = sum(Bobot * Skor)
+// 8. Matriks Rincian Skor 7 Parameter Deterministik
 export interface ScoringBreakdown {
   stock_fulfillment: number;      // Bobot 25%: Kemampuan supplier memenuhi defisit
   time_lead_compliance: number;   // Bobot 20%: Waktu tiba vs jam produksi dapur
   budget_compliance: number;      // Bobot 15%: Kepatuhan harga terhadap pagu SOP
-  halal_and_legal: number;        // Bobot 15%: Gating parameter (Wajib 100, jika 0 total 0)
+  halal_and_legal: number;        // Bobot 15%: Gating parameter (Wajib 100)
   storage_compatibility: number;  // Bobot 10%: Kesesuaian volume batch dengan sisa freezer
   kitchen_capacity: number;       // Bobot 10%: Kesiapan personel dan peralatan dapur
-  route_safety: number;           // Bobot 5%: Keamanan jalur distribusi dari titik suplai
+  route_safety: number;           // Bobot 5%: Keamanan jalur distribusi
 }
 
-// 7. Pengiriman Bertahap (Delivery Batch)
+// 9. Pengiriman Bertahap (Delivery Batch)
 export interface DeliveryBatch {
-  batch_no: number;   // Nomor urut pengiriman (1, 2, dst)
-  qty_kg: number;     // Kuantitas bahan (kg) per batch
-  eta: string;        // Estimasi kedatangan (ISO string format)
+  batch_no: number;
+  qty_kg: number;
+  eta: string;
 }
 
-// 8. Strategi Logistik Terstruktur
+// 10. Strategi Logistik Terstruktur
 export interface LogisticsStrategy {
   strategy_type: StrategyType;
-  rationale: string;             // Alasan penalaran logis dari AI Agent
-  batches: DeliveryBatch[];      // Jadwal pembagian pengiriman
+  rationale: string;
+  batches: DeliveryBatch[];
 }
 
-// 9. Rekomendasi Pengadaan Pengganti
+// 11. Rekomendasi Pengadaan Pengganti
 export interface RecommendedProcurement {
   supplier_id: string;
   supplier_name: string;
@@ -85,16 +125,15 @@ export interface RecommendedProcurement {
   logistics_strategy: LogisticsStrategy;
 }
 
-// 10. Catatan Audit Jejak Keputusan (Immutable Audit Trail)
+// 12. Catatan Audit Jejak Keputusan (Immutable Audit Trail)
 export interface AuditTrailStep {
-  stage: string;       // Tahapan (DATA_AGGREGATION, COMPLIANCE_FILTER, dsb)
-  status: string;      // DETERMINISTIC_PASS, AGENT_REASONING_PASS, dsb
-  message: string;     // Pesan penjelasan verifikasi
-  timestamp: string;   // Waktu pencatatan
+  stage: string;
+  status: string;
+  message: string;
+  timestamp: string;
 }
 
-// 11. Response Keputusan Lengkap saat Menunggu Persetujuan
-// (GET /api/v1/incidents/{incident_id}/decision)
+// 13. Response Keputusan Lengkap saat Menunggu Persetujuan
 export interface IncidentDecisionResponse {
   incident_id: string;
   item_id: string;
@@ -109,7 +148,7 @@ export interface IncidentDecisionResponse {
   audit_trail: AuditTrailStep[];
 }
 
-// 12. Request Otorisasi Manusia (POST /api/v1/incidents/{incident_id}/approve)
+// 14. Request Otorisasi Manusia (POST /api/v1/incidents/{incident_id}/approve)
 export interface ApprovalRequest {
   incident_id: string;
   action: "APPROVE" | "REJECT" | "MODIFY";
@@ -118,7 +157,7 @@ export interface ApprovalRequest {
   approver_notes?: string;
 }
 
-// 13. Response Penerbitan Purchase Order Resmi
+// 15. Response Penerbitan Purchase Order Resmi
 export interface PurchaseOrderResponse {
   status: string;
   po_number: string;
@@ -135,8 +174,7 @@ export interface PurchaseOrderResponse {
   po_download_url: string;
 }
 
-// 14. Event Schema untuk Real-Time Streaming (SSE)
-// (GET /api/v1/incidents/{incident_id}/stream)
+// 16. Event Schema untuk Real-Time Streaming (SSE)
 export interface PipelineStreamEvent {
   event: 
     | "node_started" 
@@ -160,3 +198,17 @@ export interface PipelineStreamEvent {
   };
 }
 
+// 17. Obrolan Asisten Percakapan (Conversational Chatbot)
+export interface ChatRequest {
+  session_id: string;
+  message: string;
+  user_role?: string;
+}
+
+export interface ChatResponse {
+  session_id: string;
+  reply: string;
+  intent: "REPORT_INCIDENT" | "REQUEST_REVISION" | "CONFIRM_APPROVAL" | "GENERAL_INQUIRY" | "MANAGE_SUPPLIER";
+  action_required: "NONE" | "CLARIFICATION_NEEDED" | "APPROVAL_PENDING" | "COMPLETED";
+  preview_data?: Record<string, unknown> | null;
+}

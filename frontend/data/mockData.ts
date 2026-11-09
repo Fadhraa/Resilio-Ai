@@ -1,9 +1,214 @@
-import { IncidentDecisionResponse, PurchaseOrderResponse } from "@/types/incident";
+import {
+  IncidentDecisionResponse,
+  PurchaseOrderResponse,
+  InventoryItem,
+  SupplierRecord,
+} from "@/types/incident";
 
 /**
  * Mock Data Skenario Nyata SPPG:
- * Gangguan armada supplier utama ayam potong akibat banjir jalur Pantura.
+ * Sinkron 1:1 dengan app/data/suppliers.json dan app/data/inventory.json pada branch Ai.
  */
+
+// 1. Data Inventaris Bahan Pangan Gudang SPPG
+export const mockInventoryList: InventoryItem[] = [
+  {
+    item_id: "ITEM-AYAM-01",
+    item_name: "Daging Ayam Broiler Segar",
+    category: "PROTEIN",
+    current_stock_kg: 80.0,
+    safety_stock_kg: 30.0,
+    freezer_capacity_kg: 100.0,
+    freezer_occupied_kg: 80.0,
+    sop_max_price_per_kg: 42000.0,
+  },
+  {
+    item_id: "ITEM-BERAS-01",
+    item_name: "Beras Premium Ramos",
+    category: "STAPLE",
+    current_stock_kg: 500.0,
+    safety_stock_kg: 150.0,
+    freezer_capacity_kg: 0.0,
+    freezer_occupied_kg: 0.0,
+    sop_max_price_per_kg: 16500.0,
+  },
+  {
+    item_id: "ITEM-TELUR-01",
+    item_name: "Telur Ayam Ras Segar",
+    category: "PROTEIN",
+    current_stock_kg: 120.0,
+    safety_stock_kg: 50.0,
+    freezer_capacity_kg: 60.0,
+    freezer_occupied_kg: 40.0,
+    sop_max_price_per_kg: 31000.0,
+  },
+  {
+    item_id: "ITEM-WORTEL-01",
+    item_name: "Wortel Segar Brastagi",
+    category: "VEGETABLE",
+    current_stock_kg: 45.0,
+    safety_stock_kg: 20.0,
+    freezer_capacity_kg: 40.0,
+    freezer_occupied_kg: 25.0,
+    sop_max_price_per_kg: 18000.0,
+  },
+  {
+    item_id: "ITEM-SAPI-01",
+    item_name: "Daging Sapi Segar (Has Luar)",
+    category: "PROTEIN",
+    current_stock_kg: 50.0,
+    safety_stock_kg: 25.0,
+    freezer_capacity_kg: 80.0,
+    freezer_occupied_kg: 40.0,
+    sop_max_price_per_kg: 135000.0,
+  },
+  {
+    item_id: "ITEM-TAHU-01",
+    item_name: "Tahu Putih Segar",
+    category: "PROTEIN",
+    current_stock_kg: 50.0,
+    safety_stock_kg: 20.0,
+    freezer_capacity_kg: 40.0,
+    freezer_occupied_kg: 10.0,
+    sop_max_price_per_kg: 25000.0,
+  },
+  {
+    item_id: "ITEM-TEMPE-01",
+    item_name: "Tempe Kedelai Segar",
+    category: "PROTEIN",
+    current_stock_kg: 40.0,
+    safety_stock_kg: 15.0,
+    freezer_capacity_kg: 30.0,
+    freezer_occupied_kg: 10.0,
+    sop_max_price_per_kg: 22000.0,
+  },
+];
+
+// 2. Data Katalog Rekanan Pemasok SPPG (Tersinkron dengan suppliers.json)
+export const mockSuppliersList: SupplierRecord[] = [
+  {
+    supplier_id: "SUP-UTAMA-01",
+    supplier_name: "PT Unggas Sejahtera Nusantara",
+    category: "PROTEIN",
+    commodity: "DAGING_AYAM",
+    supported_items: ["ITEM-AYAM-01"],
+    halal_certified: true,
+    halal_cert_number: "ID32110000123450124",
+    unit_price_idr: 37500.0,
+    daily_capacity_kg: 300.0,
+    lead_time_hours: 2.5,
+    distance_km: 12.0,
+    reliability_rating: 96.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-ALT-02",
+    supplier_name: "PT Berkah Unggas Jaya",
+    category: "PROTEIN",
+    commodity: "DAGING_AYAM",
+    supported_items: ["ITEM-AYAM-01"],
+    halal_certified: true,
+    halal_cert_number: "ID32110000897650324",
+    unit_price_idr: 36500.0,
+    daily_capacity_kg: 140.0,
+    lead_time_hours: 4.0,
+    distance_km: 22.0,
+    reliability_rating: 95.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-ALT-01",
+    supplier_name: "CV Berkah Ternak Barokah",
+    category: "PROTEIN",
+    commodity: "DAGING_AYAM",
+    supported_items: ["ITEM-AYAM-01"],
+    halal_certified: true,
+    halal_cert_number: "ID32110000543210224",
+    unit_price_idr: 39500.0,
+    daily_capacity_kg: 150.0,
+    lead_time_hours: 3.5,
+    distance_km: 18.0,
+    reliability_rating: 92.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-ALT-03",
+    supplier_name: "UD Ayam Murah Meriah (Uncertified)",
+    category: "PROTEIN",
+    commodity: "DAGING_AYAM",
+    supported_items: ["ITEM-AYAM-01"],
+    halal_certified: false,
+    halal_cert_number: null,
+    unit_price_idr: 32000.0,
+    daily_capacity_kg: 200.0,
+    lead_time_hours: 2.0,
+    distance_km: 10.0,
+    reliability_rating: 70.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-SAPI-01",
+    supplier_name: "PT Lembu Barokah Nusantara",
+    category: "PROTEIN",
+    commodity: "DAGING_SAPI",
+    supported_items: ["ITEM-SAPI-01"],
+    halal_certified: true,
+    halal_cert_number: "ID32110000778890524",
+    unit_price_idr: 128000.0,
+    daily_capacity_kg: 200.0,
+    lead_time_hours: 3.0,
+    distance_km: 15.0,
+    reliability_rating: 94.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-TELUR-01",
+    supplier_name: "CV Sumber Telur Mandiri",
+    category: "PROTEIN",
+    commodity: "TELUR_AYAM",
+    supported_items: ["ITEM-TELUR-01"],
+    halal_certified: true,
+    halal_cert_number: "ID32110000445560624",
+    unit_price_idr: 28500.0,
+    daily_capacity_kg: 500.0,
+    lead_time_hours: 2.0,
+    distance_km: 12.0,
+    reliability_rating: 93.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-REG-03",
+    supplier_name: "CV Berkah Mandiri Unggas",
+    category: "PROTEIN",
+    commodity: "DAGING_AYAM",
+    supported_items: ["ITEM-AYAM-01"],
+    halal_certified: true,
+    halal_cert_number: "ID32110000777889900",
+    unit_price_idr: 37000.0,
+    daily_capacity_kg: 250.0,
+    lead_time_hours: 3.0,
+    distance_km: 15.0,
+    reliability_rating: 95.0,
+    is_active: true,
+  },
+  {
+    supplier_id: "SUP-REG-04",
+    supplier_name: "CV Berkah Tahu Alami",
+    category: "PROTEIN",
+    commodity: "TAHU",
+    supported_items: ["ITEM-TAHU-01"],
+    halal_certified: true,
+    halal_cert_number: "ID3211",
+    unit_price_idr: 18000.0,
+    daily_capacity_kg: 200.0,
+    lead_time_hours: 3.0,
+    distance_km: 15.0,
+    reliability_rating: 90.0,
+    is_active: true,
+  },
+];
+
+// 3. Skenario Keputusan Mitigasi Defisit Ayam
 export const mockIncidentDecision: IncidentDecisionResponse = {
   incident_id: "INC-2026-001",
   item_id: "ITEM-AYAM-01",
@@ -17,19 +222,19 @@ export const mockIncidentDecision: IncidentDecisionResponse = {
   recommended_procurement: {
     supplier_id: "SUP-ALT-02",
     supplier_name: "PT Berkah Unggas Jaya",
-    unit_price_idr: 38000,
-    total_estimated_cost_idr: 2432000,
+    unit_price_idr: 36500,
+    total_estimated_cost_idr: 2336000,
     halal_certificate_active: true,
     feasibility_score: 78.5,
     feasibility_status: "FEASIBLE_WITH_CONDITIONS",
     scoring_breakdown: {
-      stock_fulfillment: 100.0,      // Mampu memasok 100% kuota defisit (64 kg)
-      time_lead_compliance: 85.0,   // Tiba tepat waktu sebelum jam masak
-      budget_compliance: 90.0,      // Rp 38.000 vs pagu SOP Rp 40.000 (di bawah pagu)
-      halal_and_legal: 100.0,       // Sertifikat Halal BPJPH aktif (Wajib 100)
-      storage_compatibility: 40.0,  // Restriksi fisik: Freezer hanya muat 20 kg
-      kitchen_capacity: 80.0,       // Kru dapur siap menerima batch pagi
-      route_safety: 70.0,           // Melewati rute alternatif non-banjir
+      stock_fulfillment: 100.0,
+      time_lead_compliance: 85.0,
+      budget_compliance: 92.0,
+      halal_and_legal: 100.0,
+      storage_compatibility: 40.0,
+      kitchen_capacity: 80.0,
+      route_safety: 70.0,
     },
     logistics_strategy: {
       strategy_type: "SPLIT_DELIVERY",
@@ -61,7 +266,7 @@ export const mockIncidentDecision: IncidentDecisionResponse = {
       stage: "COMPLIANCE_FILTER",
       status: "DETERMINISTIC_PASS",
       message:
-        "Katalog supplier difilter: 2 supplier non-halal dan 1 supplier di luar radius logistik langsung dieliminasi.",
+        "Katalog supplier difilter: supplier non-halal (UD Ayam Murah Meriah) langsung dieliminasi mutlak.",
       timestamp: "2026-10-04T10:00:02+07:00",
     },
     {
@@ -81,10 +286,89 @@ export const mockIncidentDecision: IncidentDecisionResponse = {
   ],
 };
 
+// 4. Daftar Riwayat Surat Pesanan Resmi (PO)
+export const mockPurchaseOrdersList: PurchaseOrderResponse[] = [
+  {
+    status: "SUCCESS",
+    po_number: "PO-SPPG-2026-10-0042",
+    incident_id: "INC-2026-001",
+    supplier_id: "SUP-ALT-02",
+    supplier_name: "PT Berkah Unggas Jaya",
+    item_id: "ITEM-AYAM-01",
+    approved_qty_kg: 64.0,
+    unit_price_idr: 36500.0,
+    total_amount_idr: 2336000.0,
+    approver_name: "Budi Santoso, S.T. (Kepala SPPG)",
+    generated_at: "2026-10-04T10:02:15Z",
+    po_download_url: "/mock/po/PO-SPPG-2026-10-0042.pdf",
+    logistics_strategy: {
+      strategy_type: "SPLIT_DELIVERY",
+      rationale: "Pengiriman 2 batch karena sisa kulkas pendingin hanya muat 20 kg.",
+      batches: [
+        { batch_no: 1, qty_kg: 20.0, eta: "2026-10-04T17:00:00Z" },
+        { batch_no: 2, qty_kg: 44.0, eta: "2026-10-05T05:00:00Z" },
+      ],
+    },
+  },
+  {
+    status: "SUCCESS",
+    po_number: "PO-SPPG-2026-10-0038",
+    incident_id: "INC-2026-REG-01",
+    supplier_id: "SUP-BERAS-01",
+    supplier_name: "Koperasi Tani Cianjur Sejahtera",
+    item_id: "ITEM-BERAS-01",
+    approved_qty_kg: 500.0,
+    unit_price_idr: 16500.0,
+    total_amount_idr: 8250000.0,
+    approver_name: "Budi Santoso, S.T. (Kepala SPPG)",
+    generated_at: "2026-10-01T08:30:00Z",
+    po_download_url: "/mock/po/PO-SPPG-2026-10-0038.pdf",
+    logistics_strategy: {
+      strategy_type: "DIRECT_DELIVERY",
+      rationale: "Bahan kering tidak memerlukan ruang freezer.",
+      batches: [{ batch_no: 1, qty_kg: 500.0, eta: "2026-10-01T12:00:00Z" }],
+    },
+  },
+  {
+    status: "SUCCESS",
+    po_number: "PO-SPPG-2026-09-0024",
+    incident_id: "INC-2026-REG-02",
+    supplier_id: "SUP-TELUR-01",
+    supplier_name: "CV Sumber Telur Mandiri",
+    item_id: "ITEM-TELUR-01",
+    approved_qty_kg: 120.0,
+    unit_price_idr: 28500.0,
+    total_amount_idr: 3420000.0,
+    approver_name: "Budi Santoso, S.T. (Kepala SPPG)",
+    generated_at: "2026-09-28T09:15:00Z",
+    po_download_url: "/mock/po/PO-SPPG-2026-09-0024.pdf",
+    logistics_strategy: {
+      strategy_type: "DIRECT_DELIVERY",
+      rationale: "Pengiriman langsung ke rak penyimpanan telur dapur.",
+      batches: [{ batch_no: 1, qty_kg: 120.0, eta: "2026-09-28T14:00:00Z" }],
+    },
+  },
+];
+
 export const mockPoSuccess: PurchaseOrderResponse = {
   status: "SUCCESS",
   po_number: "PO-SPPG-2026-10-0042",
+  incident_id: "INC-2026-001",
+  supplier_id: "SUP-ALT-02",
+  supplier_name: "PT Berkah Unggas Jaya",
+  item_id: "ITEM-AYAM-01",
+  approved_qty_kg: 64.0,
+  unit_price_idr: 36500.0,
+  total_amount_idr: 2336000.0,
+  approver_name: "Budi Santoso, S.T. (Kepala SPPG)",
   generated_at: new Date().toISOString(),
   po_download_url: "/mock/po/PO-SPPG-2026-10-0042.pdf",
+  logistics_strategy: {
+    strategy_type: "SPLIT_DELIVERY",
+    rationale: "Pengiriman bertahap 2 kali agar muat di kulkas pendingin.",
+    batches: [
+      { batch_no: 1, qty_kg: 20.0, eta: "2026-10-04T17:00:00+07:00" },
+      { batch_no: 2, qty_kg: 44.0, eta: "2026-10-05T05:00:00+07:00" },
+    ],
+  },
 };
-
