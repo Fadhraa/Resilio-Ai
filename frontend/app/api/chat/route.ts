@@ -20,33 +20,62 @@ export async function POST(req: NextRequest) {
   try {
     const payload: ChatRequest = await req.json();
 
-    // 1. Forward request ke backend Python resmi (FastAPI di port 8000)
-    try {
-      const controller = new AbortController();
-      // Berikan timeout 20 detik agar LLM Gemini memiliki waktu berpikir dan mensintesis respon semantik
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+    // 1. Coba forward ke backend Python resmi (FastAPI di port 8000)
+    // Mendukung fallback baik ke 127.0.0.1 maupun localhost (antisipasi perbedaan IPv4 / IPv6 di Windows)
+    const candidates = [
+      BACKEND_URL,
+      "http://127.0.0.1:8000/api/v1",
+      "http://localhost:8000/api/v1",
+    ];
+    const uniqueTargets = Array.from(new Set(candidates));
 
-      const backendRes = await fetch(`${BACKEND_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+    for (const target of uniqueTargets) {
+      try {
+        const controller = new AbortController();
+        // Berikan batas waktu 35 detik agar pemrosesan semantik kognitif Gemini memiliki waktu yang cukup
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
 
-      if (backendRes.ok) {
-        const data: ChatResponse = await backendRes.json();
-        return NextResponse.json(data);
+        const backendRes = await fetch(`${target}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (backendRes.ok) {
+          const data: ChatResponse = await backendRes.json();
+          return NextResponse.json(data);
+        } else {
+          console.error(
+            `[Resilio Chat Proxy] Backend pada ${target} merespons status ${backendRes.status}`,
+          );
+          try {
+            const errData = await backendRes.json();
+            if (errData && errData.detail) {
+              const noticeResponse: ChatResponse = {
+                session_id: payload.session_id,
+                reply: `⚠️ **Pemberitahuan Sistem Backend:** ${errData.detail}`,
+                intent: "GENERAL_INQUIRY",
+                action_required: "NONE",
+              };
+              return NextResponse.json(noticeResponse);
+            }
+          } catch {
+            // Biarkan lanjut ke candidate berikutnya atau notice
+          }
+        }
+      } catch (err: any) {
+        console.warn(
+          `[Resilio Chat Proxy] Gagal terhubung ke ${target}: ${err?.message || err}`,
+        );
       }
-    } catch {
-      // Backend offline atau koneksi timeout
     }
 
-    // 2. Jika backend Python di port 8000 offline, berikan notifikasi jujur dan transparan
-    // daripada melakukan simulasi regex palsu yang tidak menyentuh database SQLite.
+    // 2. Jika seluruh target backend Python di port 8000 offline / unreachable
     const offlineNotice: ChatResponse = {
       session_id: payload.session_id,
-      reply: `⚠️ **Server Backend ResilioAI (Port 8000) Belum Aktif**\n\nSeluruh keputusan dan penalaran bahasa alami (termasuk deteksi niat penghapusan rekanan, analisis inventaris, dan kepatuhan regulasi gizi SPPG) diproses murni oleh model LLM Gemini dan basis data SQLite di backend Python.\n\nSilakan jalankan backend di terminal:\n\`\`\`powershell\n.venv\\Scripts\\python.exe -m uvicorn main:app --port 8000 --reload\n\`\`\`\nSetelah server aktif, silakan kirimkan kembali instruksi Anda.`,
+      reply: `⚠️ **Server Backend ResilioAI (Port 8000) Belum Aktif atau Sedang Mengalami Kendala Koneksi**\n\nSeluruh keputusan dan penalaran bahasa alami (termasuk deteksi niat penghapusan rekanan, analisis inventaris, dan kepatuhan regulasi gizi SPPG) diproses murni oleh model LLM Gemini dan basis data SQLite di backend Python.\n\nSilakan periksa terminal backend Anda dan pastikan server berjalan:\n\`\`\`powershell\n.venv\\Scripts\\python.exe -m uvicorn app.main:app --port 8000 --reload\n\`\`\`\nSetelah server aktif, silakan kirimkan kembali instruksi Anda.`,
       intent: "GENERAL_INQUIRY",
       action_required: "NONE",
     };

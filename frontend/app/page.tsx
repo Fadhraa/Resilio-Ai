@@ -76,6 +76,19 @@ export const LIVE_PIPELINE_STEPS = [
 ];
 
 const getTraceBadge = (trace: ExecutionTraceStep[]) => {
+  const isCancelled = trace.some(
+    (s) =>
+      s.stage === "DATA_CLEANUP" ||
+      s.title?.toLowerCase().includes("pembatalan"),
+  );
+  if (isCancelled) {
+    return {
+      label: "Operasi Dibatalkan (Integritas Terjaga)",
+      className: "text-slate-700 bg-slate-100/80 border-slate-200",
+      icon: <ShieldCheck className="h-3 w-3 text-slate-500" />,
+    };
+  }
+
   const isDuplicateCheck = trace.some(
     (s) =>
       s.stage === "INTEGRITY_GATE" ||
@@ -90,11 +103,30 @@ const getTraceBadge = (trace: ExecutionTraceStep[]) => {
     };
   }
 
+  const isNonHalal = trace.some(
+    (s) =>
+      s.stage === "REGULATORY_GATE" ||
+      s.title?.toLowerCase().includes("non-halal") ||
+      s.details?.toLowerCase().includes("non-halal") ||
+      s.details?.toLowerCase().includes("belum bersertifikat halal") ||
+      s.details?.toLowerCase().includes("non-sertifikasi") ||
+      s.details?.toLowerCase().includes("ketiadaan rekanan bersertifikat halal") ||
+      s.details?.toLowerCase().includes("belum halal"),
+  );
+  if (isNonHalal) {
+    return {
+      label: "Filter Regulasi: Non-Halal (UU JPH 33/2014)",
+      className: "text-rose-800 bg-rose-100/80 border-rose-200",
+      icon: <AlertTriangle className="h-3 w-3 text-rose-600" />,
+    };
+  }
+
   const isParameterValidation = trace.some(
     (s) =>
       s.stage === "PARAMETER_AUDIT" ||
       s.stage === "HUMAN_CLARIFICATION_GATE" ||
-      s.title?.toLowerCase().includes("kelengkapan"),
+      s.title?.toLowerCase().includes("deteksi kelengkapan") ||
+      s.title?.toLowerCase().includes("permintaan klarifikasi"),
   );
   if (isParameterValidation) {
     return {
@@ -805,31 +837,85 @@ export default function DashboardPage() {
 
                               {expandedTraces[idx] && (
                                 <div className="mt-2.5 pt-2 border-t border-blue-200/60 space-y-2">
-                                  {msg.executionTrace.map((step) => (
-                                    <div
-                                      key={step.step_number}
-                                      className="flex items-start gap-2.5 bg-white/80 rounded-lg p-2 border border-blue-100/80 shadow-2xs"
-                                    >
-                                      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white mt-0.5 shadow-2xs">
-                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                                          <span className="font-semibold text-slate-900 text-xs">
-                                            {step.step_number}. {step.title}
-                                          </span>
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-[10px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-                                              {step.execution_time_ms} ms
-                                            </span>
-                                          </div>
+                                  {msg.executionTrace.map((step) => {
+                                    const isStepWarningOrFailed =
+                                      step.status === "FAILED" ||
+                                      step.status === "WARNING" ||
+                                      step.stage === "REGULATORY_GATE" ||
+                                      step.details
+                                        ?.toLowerCase()
+                                        .includes("non-sertifikasi") ||
+                                      step.details
+                                        ?.toLowerCase()
+                                        .includes("non-halal") ||
+                                      step.details
+                                        ?.toLowerCase()
+                                        .includes("belum bersertifikat halal") ||
+                                      step.details
+                                        ?.toLowerCase()
+                                        .includes("belum halal") ||
+                                      step.title
+                                        ?.toLowerCase()
+                                        .includes("non-halal");
+
+                                    return (
+                                      <div
+                                        key={step.step_number}
+                                        className={`flex items-start gap-2.5 rounded-lg p-2 border shadow-2xs ${
+                                          isStepWarningOrFailed
+                                            ? "bg-rose-50/80 border-rose-200"
+                                            : "bg-white/80 border-blue-100/80"
+                                        }`}
+                                      >
+                                        <div
+                                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white mt-0.5 shadow-2xs ${
+                                            isStepWarningOrFailed
+                                              ? "bg-rose-600"
+                                              : "bg-emerald-600"
+                                          }`}
+                                        >
+                                          {isStepWarningOrFailed ? (
+                                            <AlertTriangle className="h-3 w-3" />
+                                          ) : (
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                          )}
                                         </div>
-                                        <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                                          {step.details}
-                                        </p>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <span
+                                              className={`font-semibold text-xs ${
+                                                isStepWarningOrFailed
+                                                  ? "text-rose-950 font-bold"
+                                                  : "text-slate-900"
+                                              }`}
+                                            >
+                                              {step.step_number}. {step.title}
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                              <span
+                                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                                  isStepWarningOrFailed
+                                                    ? "text-rose-700 bg-rose-100/70 border-rose-200 font-semibold"
+                                                    : "text-slate-600 bg-slate-50 border-slate-200"
+                                                }`}
+                                              >
+                                                {step.execution_time_ms} ms
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <p
+                                            className={`text-[11px] mt-0.5 leading-relaxed ${
+                                              isStepWarningOrFailed
+                                                ? "text-rose-800 font-medium"
+                                                : "text-slate-600"
+                                            }`}
+                                          >
+                                            {step.details}
+                                          </p>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -853,10 +939,24 @@ export default function DashboardPage() {
                                 <span className="font-semibold text-xs text-blue-900">
                                   Pratinjau Draf Rekanan Baru
                                 </span>
-                                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                                  Halal Terverifikasi
-                                </span>
+                                {msg.previewData.draft.halal_certified ? (
+                                  <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                                    Halal Terverifikasi
+                                  </span>
+                                ) : (
+                                  <span className="rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700 border border-rose-200">
+                                    Belum Bersertifikat Halal
+                                  </span>
+                                )}
                               </div>
+                              {!msg.previewData.draft.halal_certified && (
+                                <div className="rounded-lg bg-rose-50 border border-rose-200 p-2 text-[11px] text-rose-800 flex items-start gap-1.5">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />
+                                  <span>
+                                    <strong>Peringatan Regulasi UU JPH 33/2014:</strong> Rekanan ini belum bersertifikat halal dan tidak dapat dialokasikan untuk pemenuhan porsi resmi SPPG BGN.
+                                  </span>
+                                </div>
+                              )}
                               <div className="grid grid-cols-2 gap-2 text-xs">
                                 <div>
                                   <span className="text-slate-500">
@@ -1456,7 +1556,7 @@ export default function DashboardPage() {
                     title="Klik untuk langsung mensimulasikan insiden banjir & mitigasi darurat"
                   >
                     <AlertTriangle className="h-3 w-3 text-rose-600" />
-                    <span>🚨 Banjir Pantura</span>
+                    <span>Simulasi Banjir</span>
                   </button>
                   <button
                     type="button"
@@ -1470,7 +1570,7 @@ export default function DashboardPage() {
                     title="Klik untuk langsung menyusun perencanaan 3000 porsi ayam + telur"
                   >
                     <FileText className="h-3 w-3 text-blue-600" />
-                    <span>🍲 Rencana 3000 Porsi</span>
+                    <span>Rencana 3000 Porsi</span>
                   </button>
                   <button
                     type="button"
@@ -1484,7 +1584,7 @@ export default function DashboardPage() {
                     title="Klik untuk menguji validasi multi-turn pendaftaran rekanan baru"
                   >
                     <Plus className="h-3 w-3 text-amber-600" />
-                    <span>📝 Uji Daftar Rekanan</span>
+                    <span>Uji Daftar Rekanan</span>
                   </button>
                   <button
                     type="button"
@@ -1498,7 +1598,7 @@ export default function DashboardPage() {
                     title="Klik untuk kueri langsung stok & kapasitas cold chain SQLite ACID"
                   >
                     <Warehouse className="h-3 w-3 text-emerald-600" />
-                    <span>❄️ Audit Rantai Dingin</span>
+                    <span>Audit Rantai Dingin</span>
                   </button>
                 </div>
 
