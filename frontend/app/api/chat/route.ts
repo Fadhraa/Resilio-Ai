@@ -72,10 +72,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Jika seluruh target backend Python di port 8000 offline / unreachable
+    // 2. Jika seluruh target backend Python offline / unreachable
     const offlineNotice: ChatResponse = {
       session_id: payload.session_id,
-      reply: `⚠️ **Server Backend ResilioAI (Port 8000) Belum Aktif atau Sedang Mengalami Kendala Koneksi**\n\nSeluruh keputusan dan penalaran bahasa alami (termasuk deteksi niat penghapusan rekanan, analisis inventaris, dan kepatuhan regulasi gizi SPPG) diproses murni oleh model LLM Gemini dan basis data SQLite di backend Python.\n\nSilakan periksa terminal backend Anda dan pastikan server berjalan:\n\`\`\`powershell\n.venv\\Scripts\\python.exe -m uvicorn app.main:app --port 8000 --reload\n\`\`\`\nSetelah server aktif, silakan kirimkan kembali instruksi Anda.`,
+      reply: `⚠️ **Server Backend ResilioAI Sedang Menyiapkan Layanan (Proses Cold-Start / Memulai Ulang)**\n\nSeluruh keputusan dan penalaran bahasa alami (termasuk deteksi niat penghapusan rekanan, analisis inventaris, dan kepatuhan regulasi gizi SPPG) diproses murni oleh model LLM Gemini dan basis data SQLite di backend Python.\n\n📢 **Pemberitahuan untuk Bapak/Ibu Dewan Juri:**\nJika Anda mengakses sistem ini melalui lingkungan cloud (*Render Free Tier*), server backend yang tidak aktif beberapa saat akan masuk ke mode *sleep*. Sistem membutuhkan waktu sekitar **3 hingga 5 menit** agar server Render menyala kembali (*spin-up*) secara otomatis.\n\nMohon berkenan menunggu sejenak sekitar 5 menit, lalu silakan kirimkan kembali instruksi Anda. Terima kasih atas pengertian dan kesabaran Bapak/Ibu Dewan Juri!\n\n*(Untuk pengujian lokal, pastikan terminal backend aktif via: \`.venv\\Scripts\\python.exe -m uvicorn app.main:app --port 8000 --reload\`)*`,
       intent: "GENERAL_INQUIRY",
       action_required: "NONE",
     };

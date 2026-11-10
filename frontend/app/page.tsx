@@ -425,7 +425,7 @@ export default function DashboardPage() {
         ...prev,
         {
           role: "assistant",
-          text: "Mohon maaf, terjadi kendala koneksi dengan mesin kognitif. Silakan coba kembali dalam beberapa saat.",
+          text: "Mohon maaf, terjadi kendala koneksi dengan mesin kognitif. Apabila server cloud Render sedang dalam proses cold-start (bangun dari mode sleep), mohon berkenan menunggu sekitar 3–5 menit hingga server menyala kembali secara otomatis, lalu kirimkan kembali instruksi Anda.",
         },
       ]);
     } finally {
@@ -2395,8 +2395,21 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* Pemberitahuan Server Cloud / Render Cold-Start untuk Dewan Juri */}
+              <div className="mt-3.5 rounded-xl border border-sky-200/90 bg-sky-50/80 p-3 text-xs flex items-start gap-2.5">
+                <Clock className="h-4 w-4 text-sky-700 shrink-0 mt-0.5" />
+                <div className="space-y-0.5 text-[11px] leading-relaxed text-sky-950">
+                  <span className="font-semibold text-sky-950 block">
+                    Pemberitahuan Kesiapan Server Cloud (Render Instance):
+                  </span>
+                  <p className="text-sky-900/90">
+                    Apabila server backend saat ini dalam kondisi nonaktif (mode <em>sleep / cold start</em> pada layanan cloud Render), mohon berkenan menunggu sekitar <strong>3 hingga 5 menit</strong> agar server menyala kembali secara otomatis. Seluruh penalaran kognitif agen dan pencatatan basis data SQLite ACID akan segera berfungsi normal setelah server aktif. Terima kasih banyak atas pengertian dan permakluman Bapak/Ibu Dewan Juri.
+                  </p>
+                </div>
+              </div>
+
               {/* Catatan Lingkungan Simulasi (Synthetic Sandbox Disclaimer) */}
-              <div className="mt-3.5 rounded-xl border border-amber-200/90 bg-amber-50/70 p-3 text-xs flex items-start gap-2.5">
+              <div className="mt-2.5 rounded-xl border border-amber-200/90 bg-amber-50/70 p-3 text-xs flex items-start gap-2.5">
                 <Info className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
                 <div className="space-y-0.5 text-[11px] leading-relaxed text-amber-900">
                   <span className="font-semibold text-amber-950 block">
