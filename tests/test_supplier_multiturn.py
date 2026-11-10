@@ -62,5 +62,43 @@ class TestSupplierMultiTurnRegistration(unittest.TestCase):
         if registered:
             delete_supplier_permanently_from_db(registered["supplier_id"])
 
+    def test_duplicate_supplier_prevention(self):
+        session_id = "test-dup-supplier-session-02"
+
+        # Try to register an existing supplier: PT Unggas Sejahtera Nusantara
+        msg = (
+            "Tolong daftarkan supplier baru PT Unggas Sejahtera Nusantara, komoditas daging ayam, "
+            "harga Rp 38.000 per kg, kapasitas harian 300 kg, jarak 10 km, lead time 2 jam, halal aktif"
+        )
+        req = ChatRequest(session_id=session_id, message=msg)
+        res = conversational_agent.process_message(req)
+
+        # AI must recognize duplicate and NOT ask to create or show draft
+        self.assertEqual(res.action_required, ChatActionRequired.NONE)
+        self.assertTrue(
+            "sudah terdaftar" in res.reply.lower() or "duplikat" in res.reply.lower()
+        )
+        self.assertIn("SUP-UTAMA-01", res.reply)
+        if res.preview_data:
+            self.assertTrue(res.preview_data.get("is_duplicate"))
+
+        # Verify tool raises ValueError on duplicate
+        from app.engine.tools import register_supplier_tool
+        from app.models.schemas import SupplierCreateRequest
+        dup_payload = SupplierCreateRequest(
+            supplier_name="PT Unggas Sejahtera Nusantara",
+            category="PROTEIN",
+            commodity="DAGING_AYAM",
+            supported_items=["ITEM-AYAM-01"],
+            halal_certified=True,
+            unit_price_idr=38000.0,
+            daily_capacity_kg=300.0,
+            lead_time_hours=2.0,
+            distance_km=10.0,
+        )
+        with self.assertRaises(ValueError) as ctx:
+            register_supplier_tool(dup_payload)
+        self.assertIn("sudah terdaftar", str(ctx.exception))
+
 if __name__ == "__main__":
     unittest.main()

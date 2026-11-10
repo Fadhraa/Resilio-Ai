@@ -149,6 +149,43 @@ def match_supplier_in_text(text: str) -> Optional[Tuple[str, SupplierRecord]]:
     return None
 
 
+def normalize_supplier_name(name: str) -> str:
+    """Membersihkan dan menormalisasi nama rekanan untuk perbandingan duplikasi."""
+    if not name:
+        return ""
+    cleaned = re.sub(r"[^\w\s]", " ", name.lower())
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def find_duplicate_supplier(candidate_name: str) -> Optional[Dict[str, Any]]:
+    """Mencari apakah rekanan sudah terdaftar di basis data SQLite berdasarkan nama."""
+    if not candidate_name:
+        return None
+    cand_norm = normalize_supplier_name(candidate_name)
+    if not cand_norm:
+        return None
+
+    # Nama inti tanpa bentuk badan usaha (PT, CV, UD, TB)
+    cand_core = re.sub(r"^(pt|cv|ud|tb)\s+", "", cand_norm).strip()
+
+    from app.data.sqlite_db import get_all_suppliers
+    all_sups = get_all_suppliers(include_inactive=True)
+
+    for s in all_sups:
+        s_name = s.get("supplier_name", "")
+        s_norm = normalize_supplier_name(s_name)
+        s_core = re.sub(r"^(pt|cv|ud|tb)\s+", "", s_norm).strip()
+
+        # 1. Kecocokan persis hasil normalisasi nama lengkap
+        if cand_norm == s_norm:
+            return s
+        # 2. Kecocokan nama inti badan usaha (jika panjang >= 4 huruf)
+        if cand_core and s_core and cand_core == s_core and len(cand_core) >= 4:
+            return s
+
+    return None
+
+
 def infer_commodity_and_category(text: str, supplier_name: Optional[str] = None) -> Tuple[str, str, List[str]]:
     """Inferensi semantik komoditas, kategori, dan ID inventaris dari teks dan nama badan usaha."""
     clean_text = text.strip()

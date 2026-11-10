@@ -176,10 +176,21 @@ def register_supplier_tool(payload: SupplierCreateRequest) -> Dict[str, Any]:
     Tool pendaftaran rekanan supplier baru ke basis data SQLite SPPG.
     
     Melakukan verifikasi tata kelola kepatuhan:
-    1. Penomoran ID unik otomatis (SUP-REG-XX) dari basis data SQLite.
-    2. Pengecekan pagu anggaran SOP (tabel inventory di SQLite).
-    3. Evaluasi sertifikasi Halal (UU JPH No. 33/2014).
+    1. Pengecekan duplikasi nama rekanan (Zero Duplicate Record Guarantee).
+    2. Penomoran ID unik otomatis (SUP-REG-XX) dari basis data SQLite.
+    3. Pengecekan pagu anggaran SOP (tabel inventory di SQLite).
+    4. Evaluasi sertifikasi Halal (UU JPH No. 33/2014).
     """
+    # 0. Pengecekan Duplikasi Rekanan (Database Integrity Guard)
+    from app.engine.agent.parsers import find_duplicate_supplier
+    existing_dup = find_duplicate_supplier(payload.supplier_name)
+    if existing_dup:
+        is_act = bool(existing_dup.get("is_active", True))
+        status_str = "Aktif" if is_act else "Nonaktif"
+        raise ValueError(
+            f"Rekanan dengan nama '{payload.supplier_name}' sudah terdaftar dalam sistem dengan kode {existing_dup['supplier_id']} (Status: {status_str})."
+        )
+
     # 1. Generate ID unik terurut langsung dari data SQLite
     all_sups = get_all_suppliers(include_inactive=True)
     existing_reg_numbers = []

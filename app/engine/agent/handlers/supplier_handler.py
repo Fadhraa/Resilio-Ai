@@ -27,7 +27,13 @@ from app.engine.tools import (
     update_supplier_tool,
 )
 from app.engine.agent.prompts import SYSTEM_PROMPTS
-from app.engine.agent.parsers import match_supplier_in_text, infer_commodity_and_category, parse_supplier_create_data, extract_supplier_fields
+from app.engine.agent.parsers import (
+    match_supplier_in_text,
+    infer_commodity_and_category,
+    parse_supplier_create_data,
+    extract_supplier_fields,
+    find_duplicate_supplier,
+)
 
 
 def handle_list_suppliers(
@@ -365,6 +371,66 @@ def handle_supplier_management(
         if not merged_draft.get("supported_items"):
             merged_draft["supported_items"] = supp_items
 
+    # 3.1 PENGECEKAN DUPLIKASI REKANAN (Zero Duplicate Record Guarantee)
+    candidate_name = merged_draft.get("supplier_name")
+    if candidate_name:
+        existing_dup = find_duplicate_supplier(candidate_name)
+        if existing_dup:
+            session["pending_supplier_draft"] = None
+            session["pending_crud"] = None
+
+            is_active = bool(existing_dup.get("is_active", True))
+            sid = existing_dup["supplier_id"]
+            sname = existing_dup["supplier_name"]
+            comm = existing_dup.get("commodity", "Pangan")
+            price = existing_dup.get("unit_price_idr", 0)
+            cap = existing_dup.get("daily_capacity_kg", 0)
+            lt = existing_dup.get("lead_time_hours", 0)
+            dist = existing_dup.get("distance_km", 0)
+            h_cert = existing_dup.get("halal_cert_number") or "Tercatat BPJPH"
+            h_str = f"Halal Aktif (No: {h_cert}) ✅" if existing_dup.get("halal_certified") else "Belum Bersertifikat Halal ❌"
+
+            if is_active:
+                dup_msg = (
+                    f"Bapak Adam, rekanan **{sname}** sudah terdaftar resmi di basis data operasional SPPG dengan kode **`{sid}`** untuk komoditas **{comm}** (Status: **Aktif ✅**).\n\n"
+                    f"Rincian data rekanan saat ini di sistem:\n"
+                    f"• Harga Penawaran: Rp {price:,.2f} / kg\n"
+                    f"• Kapasitas Harian: {cap} kg/hari\n"
+                    f"• Estimasi Tiba & Jarak: {lt} jam | {dist} km\n"
+                    f"• Status Sertifikasi Halal: {h_str}\n\n"
+                    f"⚠️ **Deteksi Data Duplikat:**\n"
+                    f"Sistem mendeteksi bahwa rekanan ini telah terdaftar, sehingga pendaftaran baru tidak dapat diproses guna mencegah data ganda di basis data.\n\n"
+                    f"Apakah Bapak bermaksud untuk **memperbarui data** rekanan tersebut (misalnya penyesuaian harga atau kapasitas pasok)? Jika iya, silakan sampaikan perubahannya (contoh: *\"Update harga {sname} menjadi Rp ...\"*)."
+                )
+            else:
+                dup_msg = (
+                    f"Bapak Adam, rekanan **{sname}** dengan kode **`{sid}`** untuk komoditas **{comm}** sebelumnya sudah terdaftar di basis data SPPG, namun saat ini berstatus **Nonaktif (Soft Delete)**.\n\n"
+                    f"⚠️ **Deteksi Rekanan Nonaktif:**\n"
+                    f"Untuk menghindari duplikasi kode rekanan, pendaftaran baru tidak dapat diproses. Sebagai gantinya, apakah Bapak ingin **mengaktifkan kembali** (*reactivate*) rekanan **{sname}** ini?"
+                )
+
+            adaptive_reply = call_gemini_adaptive(
+                system_instructions=SYSTEM_PROMPTS["SUPPLIER_MANAGEMENT"],
+                user_message=user_msg,
+                context_data=(
+                    f"Tahap: Deteksi Duplikasi Rekanan. Rekanan {sname} ({sid}) sudah ada di basis data. "
+                    f"Status aktif: {is_active}. Sistem menolak pendaftaran duplikat dan menawarkan pembaruan data atau reaktivasi."
+                ),
+                fallback_text=dup_msg,
+                history=session.get("history", []),
+                target_sup_name=sname,
+            )
+            return respond(
+                session,
+                ChatResponse(
+                    session_id=request.session_id,
+                    reply=adaptive_reply,
+                    intent=ChatIntent.MANAGE_SUPPLIER,
+                    action_required=ChatActionRequired.NONE,
+                    preview_data={"existing_supplier": existing_dup, "is_duplicate": True},
+                ),
+            )
+
     # Evaluasi parameter wajib (Mandatory Operational Fields):
     # 1. Nama Rekanan
     # 2. Komoditas Pangan
@@ -653,6 +719,28 @@ def handle_crud_confirmation(
     if crud_type == "CREATE":
         payload_dict = pending["payload"]
         create_req = SupplierCreateRequest(**payload_dict)
+
+        # Idempotency / Duplicate Guard sebelum eksekusi ke database
+        existing_dup = find_duplicate_supplier(create_req.supplier_name)
+        if existing_dup and existing_dup.get("is_active", True):
+            session["pending_crud"] = None
+            sid = existing_dup["supplier_id"]
+            sname = existing_dup["supplier_name"]
+            notice = (
+                f"⚠️ **Pendaftaran Dibatalkan: Data Rekanan Telah Terdaftar**\n\n"
+                f"Rekanan **{sname}** telah terdaftar sebelumnya di basis data SPPG dengan kode **`{sid}`**.\n"
+                f"Sistem tidak melakukan penambahan ganda untuk menjaga integritas data rekanan."
+            )
+            return respond(
+                session,
+                ChatResponse(
+                    session_id=request.session_id,
+                    reply=notice,
+                    intent=ChatIntent.MANAGE_SUPPLIER,
+                    action_required=ChatActionRequired.NONE,
+                ),
+            )
+
         res = register_supplier_tool(payload=create_req)
         session["pending_crud"] = None
 

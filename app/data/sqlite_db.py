@@ -11,6 +11,7 @@ tanpa dependensi eksternal, mendukung transaksi ACID untuk:
 """
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -148,6 +149,28 @@ def init_sqlite_db() -> None:
 
         # Seed data awal hanya jika database benar-benar baru
         _seed_initial_data(conn)
+
+        # Otomatis bersihkan duplikasi rekanan jika ada di database SQLite
+        cleanup_duplicate_suppliers(conn)
+
+
+def cleanup_duplicate_suppliers(conn: sqlite3.Connection) -> None:
+    """Membersihkan duplikasi baris rekanan di SQLite berdasarkan nama yang identik."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            DELETE FROM suppliers
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM suppliers
+                GROUP BY LOWER(TRIM(supplier_name))
+            )
+            """
+        )
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
 
 
 def _seed_initial_data(conn: sqlite3.Connection) -> None:

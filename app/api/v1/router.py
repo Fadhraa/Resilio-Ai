@@ -285,7 +285,13 @@ def register_supplier(payload: SupplierCreateRequest) -> dict:
     - Verifikasi kepatuhan sertifikasi Halal (UU JPH No. 33/2014).
     - Verifikasi batas pagu anggaran SOP per kg.
     """
-    return register_supplier_tool(payload)
+    try:
+        return register_supplier_tool(payload)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
 
 @api_router.patch("/suppliers/{supplier_id}", summary="Pembaruan Data Rekanan Supplier")
