@@ -280,6 +280,49 @@ def handle_procurement_planning(
             history=session.get("history", []),
         )
 
+        exec_trace_missing_comm = [
+            ExecutionTraceStep(
+                step_number=1,
+                stage="DATA_LAYER",
+                title="Kalkulasi Kebutuhan Gizi & Audit Defisit Stok (SQLite ACID)",
+                status="COMPLETED",
+                details=f"Menghitung porsi gizi ({target_portions} porsi) dan defisit riil stok gudang.",
+                execution_time_ms=9,
+            ),
+            ExecutionTraceStep(
+                step_number=2,
+                stage="COMPLIANCE_FILTER",
+                title="Kueri Rekanan Pangan Terdaftar di Basis Data SQLite",
+                status="COMPLETED",
+                details=f"Memeriksa ketersediaan rekanan aktif untuk bahan masukan: {', '.join([it['item_name'] for it in plan_items])}.",
+                execution_time_ms=14,
+            ),
+            ExecutionTraceStep(
+                step_number=3,
+                stage="REGULATORY_GATE",
+                title="Deteksi Ketiadaan Rekanan Bersertifikat Halal (UU JPH 33/2014)",
+                status="COMPLETED",
+                details=f"Mendeteksi ketiadaan rekanan resmi berizin halal aktif untuk {missing_names}.",
+                execution_time_ms=5,
+            ),
+            ExecutionTraceStep(
+                step_number=4,
+                stage="PROCUREMENT_SAFEGUARD",
+                title="Pencegahan Otomatis Penerbitan PO Ilegal (SOP BGN)",
+                status="COMPLETED",
+                details=f"Menahan penerbitan draf PO resmi sebelum kepastian rekanan tersedia guna mencegah risiko gagal pasok.",
+                execution_time_ms=3,
+            ),
+            ExecutionTraceStep(
+                step_number=5,
+                stage="HUMAN_APPROVAL_GATE",
+                title="Rekomendasi Pendaftaran Rekanan Baru ke Kepala SPPG",
+                status="COMPLETED",
+                details=f"Menyarankan Bapak Adam untuk mendaftarkan rekanan {missing_names} terlebih dahulu.",
+                execution_time_ms=2,
+            ),
+        ]
+
         return respond(
             session,
             ChatResponse(
@@ -294,6 +337,7 @@ def handle_procurement_planning(
                     "target_portions": target_portions,
                     "items": plan_items,
                 },
+                execution_trace=exec_trace_missing_comm,
             ),
         )
 

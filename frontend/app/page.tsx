@@ -75,6 +75,42 @@ export const LIVE_PIPELINE_STEPS = [
   },
 ];
 
+const getTraceBadge = (trace: ExecutionTraceStep[]) => {
+  const isDuplicateCheck = trace.some(
+    (s) =>
+      s.stage === "INTEGRITY_GATE" ||
+      s.title?.toLowerCase().includes("duplikasi") ||
+      s.details?.toLowerCase().includes("duplikasi"),
+  );
+  if (isDuplicateCheck) {
+    return {
+      label: "100% Deterministic & ACID (Integritas Terjaga)",
+      className: "text-cyan-800 bg-cyan-100/80 border-cyan-200",
+      icon: <ShieldCheck className="h-3 w-3 text-cyan-600" />,
+    };
+  }
+
+  const isParameterValidation = trace.some(
+    (s) =>
+      s.stage === "PARAMETER_AUDIT" ||
+      s.stage === "HUMAN_CLARIFICATION_GATE" ||
+      s.title?.toLowerCase().includes("kelengkapan"),
+  );
+  if (isParameterValidation) {
+    return {
+      label: "Validasi Parameter SOP",
+      className: "text-amber-800 bg-amber-100/80 border-amber-200",
+      icon: <Clock className="h-3 w-3 text-amber-600" />,
+    };
+  }
+
+  return {
+    label: "100% Deterministic & Halal",
+    className: "text-emerald-700 bg-emerald-100/80 border-emerald-200",
+    icon: <ShieldCheck className="h-3 w-3 text-emerald-600" />,
+  };
+};
+
 function FormattedMessage({ content }: { content: string }) {
   if (!content) return null;
 
@@ -585,10 +621,6 @@ export default function DashboardPage() {
             <span className="hidden md:inline text-xs text-slate-500 font-mono">
               Resilio Cognitive Engine (SQLite ACID)
             </span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Sandbox Mode (Data Terkalibrasi)
-            </span>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -743,10 +775,19 @@ export default function DashboardPage() {
                                     Jejak Kognitif Deterministik (
                                     {msg.executionTrace.length} Tahap Selesai)
                                   </span>
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
-                                    <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                                    100% Deterministic & Halal
-                                  </span>
+                                  {(() => {
+                                    const badge = getTraceBadge(
+                                      msg.executionTrace,
+                                    );
+                                    return (
+                                      <span
+                                        className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${badge.className}`}
+                                      >
+                                        {badge.icon}
+                                        {badge.label}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-blue-900 shrink-0">
                                   <span>
@@ -2263,7 +2304,11 @@ export default function DashboardPage() {
                     Catatan Lingkungan Simulasi (Synthetic Sandbox Environment):
                   </span>
                   <p className="text-amber-900/90">
-                    Seluruh entitas rekanan, nomor registrasi halal, dan inventaris gudang pada sistem ini menggunakan data simulasi sintetis yang dikalibrasi presisi sesuai standar pagu Badan Gizi Nasional (BGN) & UU JPH No. 33/2014 demi kepatuhan etika data dan pengujian operasional yang aman.
+                    Seluruh entitas rekanan, nomor registrasi halal, dan
+                    inventaris gudang pada sistem ini menggunakan data simulasi
+                    sintetis yang dikalibrasi presisi sesuai standar pagu Badan
+                    Gizi Nasional (BGN) & UU JPH No. 33/2014 demi kepatuhan
+                    etika data dan pengujian operasional yang aman.
                   </p>
                 </div>
               </div>

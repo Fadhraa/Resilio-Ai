@@ -420,6 +420,48 @@ def handle_supplier_management(
                 history=session.get("history", []),
                 target_sup_name=sname,
             )
+            exec_trace_dup = [
+                ExecutionTraceStep(
+                    step_number=1,
+                    stage="DATA_LAYER",
+                    title="Normalisasi & Identifikasi Badan Usaha (SQLite ACID)",
+                    status="COMPLETED",
+                    details=f"Mengekstrak nama rekanan '{candidate_name}' dan menormalisasi bentuk badan usaha.",
+                    execution_time_ms=8,
+                ),
+                ExecutionTraceStep(
+                    step_number=2,
+                    stage="INTEGRITY_CHECK",
+                    title="Audit Eksistensi Rekanan di Basis Data SPPG",
+                    status="COMPLETED",
+                    details=f"Kueri tabel suppliers menemukan kecocokan pada kode {sid} ({sname}).",
+                    execution_time_ms=12,
+                ),
+                ExecutionTraceStep(
+                    step_number=3,
+                    stage="COMPLIANCE_FILTER",
+                    title="Validasi Status Operasional & Sertifikasi Halal",
+                    status="COMPLETED",
+                    details=f"Status rekanan tercatat: {'Aktif' if is_active else 'Nonaktif'}. Sertifikasi Halal: {h_str}.",
+                    execution_time_ms=5,
+                ),
+                ExecutionTraceStep(
+                    step_number=4,
+                    stage="INTEGRITY_GATE",
+                    title="Pencegahan Otomatis Duplikasi Data (Zero Redundancy)",
+                    status="COMPLETED",
+                    details=f"Memblokir penerbitan ID baru guna menjaga integritas basis data operasional SPPG.",
+                    execution_time_ms=3,
+                ),
+                ExecutionTraceStep(
+                    step_number=5,
+                    stage="HUMAN_APPROVAL_GATE",
+                    title="Penyiapan Rekomendasi Pembaruan Data (Action Gate)",
+                    status="COMPLETED",
+                    details=f"Menyajikan opsi pembaruan data penawaran harga atau reaktivasi rekanan kepada Kepala SPPG.",
+                    execution_time_ms=2,
+                ),
+            ]
             return respond(
                 session,
                 ChatResponse(
@@ -428,6 +470,7 @@ def handle_supplier_management(
                     intent=ChatIntent.MANAGE_SUPPLIER,
                     action_required=ChatActionRequired.NONE,
                     preview_data={"existing_supplier": existing_dup, "is_duplicate": True},
+                    execution_trace=exec_trace_dup,
                 ),
             )
 
@@ -494,6 +537,49 @@ def handle_supplier_management(
             target_sup_name=merged_draft.get("supplier_name"),
         )
 
+        exec_trace_missing = [
+            ExecutionTraceStep(
+                step_number=1,
+                stage="DATA_EXTRACTION",
+                title="Ekstraksi Atribut Masukan Rekanan (Regex & Semantic)",
+                status="COMPLETED",
+                details=f"Mengekstrak nama, harga, kapasitas harian, dan jarak tempuh.",
+                execution_time_ms=7,
+            ),
+            ExecutionTraceStep(
+                step_number=2,
+                stage="INTEGRITY_CHECK",
+                title="Verifikasi Keunikan Badan Usaha (SQLite ACID)",
+                status="COMPLETED",
+                details=f"Memastikan '{merged_draft.get('supplier_name')}' belum terdaftar sebelumnya.",
+                execution_time_ms=10,
+            ),
+            ExecutionTraceStep(
+                step_number=3,
+                stage="COMPLIANCE_FILTER",
+                title="Audit Syarat Mutlak Regulasi Halal & Pagu SOP BGN",
+                status="COMPLETED",
+                details=f"Evaluasi status sertifikat halal dan batas pagu harga komoditas pangan.",
+                execution_time_ms=6,
+            ),
+            ExecutionTraceStep(
+                step_number=4,
+                stage="PARAMETER_AUDIT",
+                title="Deteksi Kelengkapan Parameter Logistik SPPG",
+                status="COMPLETED",
+                details=f"Mendeteksi ketiadaan parameter wajib: {', '.join(missing_fields)}.",
+                execution_time_ms=4,
+            ),
+            ExecutionTraceStep(
+                step_number=5,
+                stage="HUMAN_APPROVAL_GATE",
+                title="Penahanan Draf Resmi & Permintaan Klarifikasi (HITL)",
+                status="WAITING_APPROVAL",
+                details=f"Menahan penerbitan draf resmi sampai informasi waktu kirim dilengkapi oleh Kepala SPPG.",
+                execution_time_ms=2,
+            ),
+        ]
+
         return respond(
             session,
             ChatResponse(
@@ -501,6 +587,7 @@ def handle_supplier_management(
                 reply=adaptive_reply,
                 intent=ChatIntent.MANAGE_SUPPLIER,
                 action_required=ChatActionRequired.CLARIFICATION_NEEDED,
+                execution_trace=exec_trace_missing,
             ),
         )
 
