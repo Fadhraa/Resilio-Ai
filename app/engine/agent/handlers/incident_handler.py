@@ -153,7 +153,7 @@ def handle_incident_report(
                 stage="COMPLIANCE_FILTER",
                 title="Filter Syarat Mutlak Kepatuhan Halal (UU JPH No. 33/2014)",
                 status="COMPLETED",
-                details=f"Memverifikasi {len(eligible)} rekanan aktif bersertifikat halal BPJPH. Rekanan non-halal dieliminasi.",
+                details=f"Memverifikasi {len(eligible)} rekanan aktif bersertifikat halal BPJPH (Syarat Mutlak Terpenuhi ✅).",
                 execution_time_ms=4,
             ),
             ExecutionTraceStep(

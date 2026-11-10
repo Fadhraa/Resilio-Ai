@@ -106,12 +106,14 @@ const getTraceBadge = (trace: ExecutionTraceStep[]) => {
   const isNonHalal = trace.some(
     (s) =>
       s.stage === "REGULATORY_GATE" ||
-      s.title?.toLowerCase().includes("non-halal") ||
-      s.details?.toLowerCase().includes("non-halal") ||
-      s.details?.toLowerCase().includes("belum bersertifikat halal") ||
+      ((s.status === "WARNING" || s.status === "FAILED") &&
+        (s.title?.toLowerCase().includes("halal") ||
+          s.details?.toLowerCase().includes("halal") ||
+          s.details?.toLowerCase().includes("sertifikasi"))) ||
       s.details?.toLowerCase().includes("non-sertifikasi") ||
+      s.details?.toLowerCase().includes("belum bersertifikat halal") ||
       s.details?.toLowerCase().includes("ketiadaan rekanan bersertifikat halal") ||
-      s.details?.toLowerCase().includes("belum halal"),
+      s.details?.toLowerCase().includes("ketiadaan rekanan resmi berizin halal"),
   );
   if (isNonHalal) {
     return {
@@ -847,16 +849,13 @@ export default function DashboardPage() {
                                         .includes("non-sertifikasi") ||
                                       step.details
                                         ?.toLowerCase()
-                                        .includes("non-halal") ||
-                                      step.details
-                                        ?.toLowerCase()
                                         .includes("belum bersertifikat halal") ||
                                       step.details
                                         ?.toLowerCase()
-                                        .includes("belum halal") ||
-                                      step.title
+                                        .includes("ketiadaan rekanan bersertifikat halal") ||
+                                      step.details
                                         ?.toLowerCase()
-                                        .includes("non-halal");
+                                        .includes("ketiadaan rekanan resmi berizin halal");
 
                                     return (
                                       <div
