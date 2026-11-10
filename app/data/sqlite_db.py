@@ -131,10 +131,18 @@ def init_sqlite_db() -> None:
                 intent TEXT,
                 action_required TEXT,
                 preview_data TEXT,
+                execution_trace TEXT,
                 created_at TEXT NOT NULL
             )
             """
         )
+
+        # Migrasi kolom execution_trace jika belum ada pada tabel lama
+        try:
+            cursor.execute("ALTER TABLE chat_history ADD COLUMN execution_trace TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
 
         conn.commit()
 
@@ -605,20 +613,29 @@ def record_chat_message(
     intent: Optional[str] = None,
     action_required: Optional[str] = None,
     preview_data: Optional[Dict[str, Any]] = None,
+    execution_trace: Optional[List[Any]] = None,
 ) -> None:
     """Merekam satu putaran pesan obrolan ke SQLite."""
     init_sqlite_db()
     now_str = datetime.now(timezone.utc).isoformat()
     preview_str = json.dumps(preview_data) if preview_data else None
+    trace_str = None
+    if execution_trace:
+        try:
+            raw_traces = [t.model_dump() if hasattr(t, "model_dump") else (t.dict() if hasattr(t, "dict") else t) for t in execution_trace]
+            trace_str = json.dumps(raw_traces)
+        except Exception:
+            trace_str = None
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO chat_history (
-                session_id, role, message, intent, action_required, preview_data, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                session_id, role, message, intent, action_required, preview_data, execution_trace, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (session_id, role, message, intent, action_required, preview_str, now_str),
+            (session_id, role, message, intent, action_required, preview_str, trace_str, now_str),
         )
         conn.commit()
 
@@ -639,6 +656,11 @@ def get_chat_session_history(session_id: str) -> List[Dict[str, Any]]:
             if d.get("preview_data"):
                 try:
                     d["preview_data"] = json.loads(d["preview_data"])
+                except Exception:
+                    pass
+            if d.get("execution_trace"):
+                try:
+                    d["execution_trace"] = json.loads(d["execution_trace"])
                 except Exception:
                     pass
             result.append(d)

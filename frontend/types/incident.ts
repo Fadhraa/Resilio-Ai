@@ -180,12 +180,22 @@ export interface ChatRequest {
   user_role?: string;
 }
 
+export interface ExecutionTraceStep {
+  step_number: number;
+  stage: string;
+  title: string;
+  status: "COMPLETED" | "WAITING_APPROVAL" | "FLAGGED" | string;
+  details: string;
+  execution_time_ms: number;
+}
+
 export interface ChatResponse {
   session_id: string;
   reply: string;
   intent: ChatIntent;
   action_required: ChatActionRequired;
   preview_data?: Record<string, any>;
+  execution_trace?: ExecutionTraceStep[];
 }
 
 // 16. Kontrak Data Master Supplier & Inventaris

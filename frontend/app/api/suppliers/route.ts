@@ -9,6 +9,9 @@ const BACKEND_URL =
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
+    if (!url.searchParams.has("include_inactive")) {
+      url.searchParams.set("include_inactive", "true");
+    }
     const search = url.search;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);

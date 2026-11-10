@@ -256,7 +256,7 @@ async def stream_incident_status(incident_id: str) -> EventSourceResponse:
 @api_router.get("/suppliers", summary="Katalog Seluruh Rekanan Supplier")
 def list_suppliers(
     commodity: str = Query(None, description="Filter komoditas (misal DAGING_AYAM, DAGING_SAPI, TELUR_AYAM)"),
-    include_inactive: bool = Query(False, description="Sertakan rekanan yang non-aktif (soft-deleted)"),
+    include_inactive: bool = Query(True, description="Sertakan rekanan yang non-aktif (soft-deleted)"),
 ) -> list[dict]:
     """
     Mengambil katalog seluruh rekanan supplier yang terdaftar di SPPG.

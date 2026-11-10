@@ -232,9 +232,19 @@ class ChatRequest(BaseModel):
     user_role: str = Field(default="Kepala SPPG", description="Peran pengguna dalam organisasi")
 
 
+class ExecutionTraceStep(BaseModel):
+    step_number: int = Field(..., description="Nomor urut tahap eksekusi kognitif (1..5)")
+    stage: str = Field(..., description="Kode stage (misal: DATA_LAYER, COMPLIANCE_FILTER)")
+    title: str = Field(..., description="Nama tahap eksekusi")
+    status: str = Field(default="COMPLETED", description="Status eksekusi: COMPLETED, WAITING_APPROVAL, FLAGGED")
+    details: str = Field(..., description="Fakta numerik / hasil komputasi deterministik")
+    execution_time_ms: int = Field(default=10, description="Estimasi latensi node dalam milidetik")
+
+
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
     intent: ChatIntent
     action_required: ChatActionRequired
     preview_data: Optional[dict] = None
+    execution_trace: Optional[List[ExecutionTraceStep]] = None

@@ -214,34 +214,80 @@ def infer_commodity_and_category(text: str, supplier_name: Optional[str] = None)
     return "PROTEIN_LAINNYA", "PROTEIN", ["ITEM-CUSTOM-01"]
 
 
-def parse_supplier_create_data(
-    text: str,
-    api_key: Optional[str] = None,
-    model_name: str = "gemini-3.5-flash-lite",
-) -> Optional[SupplierCreateRequest]:
-    """Ekstraksi terstruktur pendaftaran supplier baru dari teks percakapan bebas."""
+def extract_supplier_fields(text: str) -> Dict[str, Any]:
+    """
+    Mengekstrak parameter pendaftaran rekanan supplier dari teks percakapan.
+    Parameter yang tidak disebutkan dalam teks dikembalikan sebagai None (TIDAK di-defaultkan).
+    """
     clean_text = text.strip()
+
+    # 1. Nama Rekanan / Entitas Usaha
+    supplier_name = None
+    # Pola a: diawali kata daftar/tambah
     name_match = re.search(
-        r"(?:tambah(?:kan)?|daftar(?:kan)?|supplier baru|rekanan baru)\s+([A-Za-z0-9\.\s]+?)(?:,|\s+(?:komoditas|harga|kapasitas|dengan|halal|rp|sebesar)\b|$)",
+        r"(?:tambah(?:kan)?|daftar(?:kan)?|masukkan)\s+(?:supplier baru|rekanan baru|mitra baru|supplier|rekanan|mitra)?\s*([A-Za-z0-9\.\s]+?)(?:,|\s+(?:komoditas|bahan|harga|kapasitas|pasok|dengan|halal|rp|sebesar|jarak|waktu)\b|$)",
         clean_text,
         re.IGNORECASE,
     )
-    supplier_name = name_match.group(1).strip() if name_match else None
+    if name_match:
+        candidate = name_match.group(1).strip()
+        candidate = re.sub(r"^(?:supplier baru|rekanan baru|mitra baru|supplier|rekanan|mitra|baru)\s+", "", candidate, flags=re.IGNORECASE).strip()
+        candidate = re.sub(r"\s+(?:dengan|untuk|yang|pada)$", "", candidate, flags=re.IGNORECASE).strip()
+        if candidate and len(candidate) >= 3 and not any(w in candidate.lower() for w in ["waktu", "jam", "harga", "kapasitas", "stok", "rp", "kirim"]):
+            supplier_name = candidate
 
+    if not supplier_name:
+        # Pola b: diawali frasa supplier baru / rekanan baru / mitra baru
+        new_match = re.search(
+            r"(?:supplier baru|rekanan baru|mitra baru)\s+([A-Za-z0-9\.\s]+?)(?:,|\s+(?:komoditas|bahan|harga|kapasitas|pasok|dengan|halal|rp|sebesar|jarak|waktu)\b|$)",
+            clean_text,
+            re.IGNORECASE,
+        )
+        if new_match:
+            candidate = new_match.group(1).strip()
+            candidate = re.sub(r"^(?:supplier baru|rekanan baru|mitra baru|supplier|rekanan|mitra|baru)\s+", "", candidate, flags=re.IGNORECASE).strip()
+            candidate = re.sub(r"\s+(?:dengan|untuk|yang|pada)$", "", candidate, flags=re.IGNORECASE).strip()
+            if candidate and len(candidate) >= 3 and not any(w in candidate.lower() for w in ["waktu", "jam", "harga", "kapasitas", "stok", "rp", "kirim"]):
+                supplier_name = candidate
+
+    if not supplier_name:
+        # Pola c: diawali entitas resmi PT / CV / UD
+        ent_match = re.search(
+            r"\b(PT|CV|UD)\s+([A-Za-z0-9\.\s]+?)(?:,|\s+(?:komoditas|bahan|harga|kapasitas|pasok|dengan|halal|rp|sebesar|jarak|waktu)\b|$)",
+            clean_text,
+            re.IGNORECASE,
+        )
+        if ent_match:
+            candidate = ent_match.group(0).strip()
+            candidate = re.sub(r"^(?:supplier baru|rekanan baru|mitra baru|supplier|rekanan|mitra|baru)\s+", "", candidate, flags=re.IGNORECASE).strip()
+            candidate = re.sub(r"\s+(?:dengan|untuk|yang|pada)$", "", candidate, flags=re.IGNORECASE).strip()
+            if candidate and len(candidate) >= 3:
+                supplier_name = candidate
+
+    # 2. Harga Penawaran per kg
     price = None
-    price_match = re.search(r"(?:harga|rp|sebesar)\s*[:\.]?\s*([\d\.]+)\s*(?:rb|ribu|k)?", clean_text, re.IGNORECASE)
+    price_match = re.search(
+        r"(?:harga(?: satuan)?|rp|sebesar)\s*[:\.]?\s*([\d\.]+)\s*(?:rb|ribu|k)?",
+        clean_text,
+        re.IGNORECASE,
+    )
     if price_match:
         try:
             val_str = price_match.group(1).replace(".", "")
             price = float(val_str)
-            if "rb" in clean_text.lower() or "ribu" in clean_text.lower() or "k" in clean_text.lower():
+            if re.search(r"\b(?:rb|ribu|k)\b", clean_text, re.IGNORECASE):
                 if price < 1000:
                     price *= 1000
         except ValueError:
             price = None
 
+    # 3. Kapasitas Pasokan Harian
     capacity = None
-    cap_match = re.search(r"(?:kapasitas|pasok|supply|stok)\s*[:\.]?\s*([\d\.]+)\s*(?:kg|kilo|ton)?", clean_text, re.IGNORECASE)
+    cap_match = re.search(
+        r"(?:kapasitas(?: harian)?|pasok|supply|stok)\s*[:\.]?\s*([\d\.]+)\s*(?:kg|kilo|ton)?",
+        clean_text,
+        re.IGNORECASE,
+    )
     if cap_match:
         try:
             val_str = cap_match.group(1).replace(".", "")
@@ -251,36 +297,106 @@ def parse_supplier_create_data(
         except ValueError:
             capacity = None
 
-    halal_certified = True
+    # 4. Status Sertifikasi Halal
+    halal_certified = None
     if re.search(r"\b(non-halal|tidak halal|belum halal|tanpa sertifikat)\b", clean_text, re.IGNORECASE):
         halal_certified = False
+    elif re.search(r"\b(halal|sertifikat halal)\b", clean_text, re.IGNORECASE):
+        halal_certified = True
 
+    # 5. Nomor Sertifikat Halal
     halal_cert_number = None
-    cert_match = re.search(r"(?:no|nomor|sertifikat|id)\s*[:\.]?\s*(ID[0-9]+|[0-9]{10,})", clean_text, re.IGNORECASE)
+    cert_match = re.search(
+        r"(?:nomor sertifikat|no sertifikat|sertifikat halal|sertifikat|nomor|no|id)\s*[:\.]?\s*([A-Za-z0-9\-]{5,})",
+        clean_text,
+        re.IGNORECASE,
+    )
     if cert_match:
         halal_cert_number = cert_match.group(1).strip()
     elif halal_certified:
         halal_cert_number = "Tercatat BPJPH"
 
-    lead_time = 3.0
-    lt_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:jam|hour)", clean_text, re.IGNORECASE)
+    # 6. Estimasi Waktu Kirim (Lead Time) dalam jam
+    # PENTING: Jika tidak disebutkan dalam teks, WAJIB bernilai None (DILARANG DEFAULT KE 3 / 24 JAM)
+    lead_time = None
+    # Pola a: diawali kata kunci waktu kirim / lead time / durasi
+    lt_match = re.search(
+        r"(?:waktu kirim|lead time|durasi kirim|durasi|estimasi tiba|pengiriman|kirim(?:nya)?|waktu)\s*[:\.]?\s*(\d+(?:\.\d+)?)\s*(?:jam|hour)?",
+        clean_text,
+        re.IGNORECASE,
+    )
     if lt_match:
         try:
             lead_time = float(lt_match.group(1))
-        except ValueError:
-            pass
+        except (ValueError, TypeError):
+            lead_time = None
+    if lead_time is None:
+        # Pola b: angka diikuti jam/hour eksplisit (misal: "2 jam", "3.5 jam")
+        lt_match2 = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:jam|hour)\b", clean_text, re.IGNORECASE)
+        if lt_match2:
+            try:
+                lead_time = float(lt_match2.group(1))
+            except (ValueError, TypeError):
+                lead_time = None
 
-    distance = 15.0
+    # 7. Jarak Tempuh (km)
+    distance = None
     dist_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:km|kilo)", clean_text, re.IGNORECASE)
     if dist_match:
         try:
             distance = float(dist_match.group(1))
-        except ValueError:
-            pass
+        except (ValueError, TypeError):
+            distance = None
 
-    commodity, category, supported_items = infer_commodity_and_category(clean_text, supplier_name)
+    # 8. Komoditas & Kategori
+    commodity = None
+    category = None
+    supported_items = None
+    comm_match = re.search(
+        r"(?:komoditas|bahan)\s*[:\.]?\s*([a-zA-Z\s]+?)(?:,|\s+(?:harga|kapasitas|pasok|jarak|halal|waktu)\b|$)",
+        clean_text,
+        re.IGNORECASE,
+    )
+    if comm_match:
+        c_text = comm_match.group(1).strip()
+        commodity, category, supported_items = infer_commodity_and_category(c_text, supplier_name)
+    else:
+        comm_cand, cat_cand, items_cand = infer_commodity_and_category(clean_text, supplier_name)
+        if comm_cand != "PROTEIN_LAINNYA" or any(w in clean_text.lower() for w in ["ayam", "telur", "sapi", "tahu", "tempe", "beras", "ikan", "sayur"]):
+            commodity = comm_cand
+            category = cat_cand
+            supported_items = items_cand
 
-    if (not supplier_name or not price or not capacity) and api_key and not api_key.startswith("your_"):
+    return {
+        "supplier_name": supplier_name,
+        "commodity": commodity,
+        "category": category,
+        "supported_items": supported_items,
+        "unit_price_idr": price,
+        "daily_capacity_kg": capacity,
+        "lead_time_hours": lead_time,
+        "distance_km": distance,
+        "halal_certified": halal_certified,
+        "halal_cert_number": halal_cert_number,
+    }
+
+
+def parse_supplier_create_data(
+    text: str,
+    api_key: Optional[str] = None,
+    model_name: str = "gemini-3.5-flash-lite",
+) -> Optional[SupplierCreateRequest]:
+    """Ekstraksi terstruktur pendaftaran supplier baru dari teks percakapan bebas."""
+    fields = extract_supplier_fields(text)
+
+    has_mandatory_regex = (
+        fields.get("supplier_name")
+        and fields.get("unit_price_idr")
+        and fields.get("daily_capacity_kg")
+        and fields.get("lead_time_hours") is not None
+    )
+
+    if not has_mandatory_regex and api_key and not api_key.startswith("your_"):
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             llm = ChatGoogleGenerativeAI(
@@ -299,10 +415,10 @@ def parse_supplier_create_data(
                 "  \"daily_capacity_kg\": float atau null,\n"
                 "  \"halal_certified\": boolean,\n"
                 "  \"halal_cert_number\": string atau null,\n"
-                "  \"commodity\": string,\n"
-                "  \"category\": string,\n"
-                "  \"lead_time_hours\": float,\n"
-                "  \"distance_km\": float\n"
+                "  \"commodity\": string atau null,\n"
+                "  \"category\": string atau null,\n"
+                "  \"lead_time_hours\": float atau null (PENTING: HANYA isi jika disebutkan secara eksplisit dalam pesan. Jika tidak disebutkan wajib null, jangan pernah menebak atau mengasumsikan nilai 24 atau 3 jam),\n"
+                "  \"distance_km\": float atau null\n"
                 "}"
             )
             res = llm.invoke([("user", extract_prompt)])
@@ -311,39 +427,47 @@ def parse_supplier_create_data(
             raw_content = re.sub(r"^```\s*", "", raw_content)
             raw_content = re.sub(r"\s*```$", "", raw_content).strip()
             parsed = json.loads(raw_content)
-            if parsed.get("supplier_name") and parsed.get("unit_price_idr") and parsed.get("daily_capacity_kg"):
-                p_comm = parsed.get("commodity")
-                if p_comm:
-                    commodity, category, supported_items = infer_commodity_and_category(p_comm, supplier_name=parsed["supplier_name"])
-                return SupplierCreateRequest(
-                    supplier_name=str(parsed["supplier_name"]),
-                    category=parsed.get("category", category),
-                    commodity=commodity,
-                    supported_items=supported_items,
-                    halal_certified=bool(parsed.get("halal_certified", True)),
-                    halal_cert_number=parsed.get("halal_cert_number"),
-                    unit_price_idr=float(parsed["unit_price_idr"]),
-                    daily_capacity_kg=float(parsed["daily_capacity_kg"]),
-                    lead_time_hours=float(parsed.get("lead_time_hours", lead_time)),
-                    distance_km=float(parsed.get("distance_km", distance)),
-                    reliability_rating=85.0,
-                )
+
+            for k in ["supplier_name", "unit_price_idr", "daily_capacity_kg", "commodity", "category", "distance_km", "halal_certified", "halal_cert_number"]:
+                if fields.get(k) is None and parsed.get(k) is not None:
+                    fields[k] = parsed[k]
+
+            # Validasi lead_time_hours dari LLM: hanya terima jika teks user menyebut jam/hari/lead time
+            if fields.get("lead_time_hours") is None and parsed.get("lead_time_hours") is not None:
+                if re.search(r"\b\d+(?:\.\d+)?\s*(?:jam|hour|hari|day)\b", text, re.IGNORECASE) or "waktu kirim" in text.lower():
+                    fields["lead_time_hours"] = float(parsed["lead_time_hours"])
         except Exception:
             pass
 
-    if not supplier_name or not price or not capacity:
+    # Verifikasi seluruh parameter wajib:
+    # 1. supplier_name
+    # 2. unit_price_idr
+    # 3. daily_capacity_kg
+    # 4. lead_time_hours (WAJIB ADA, TIDAK BOLEH NONE)
+    if (
+        not fields.get("supplier_name")
+        or fields.get("unit_price_idr") is None
+        or fields.get("daily_capacity_kg") is None
+        or fields.get("lead_time_hours") is None
+    ):
         return None
 
+    comm = fields.get("commodity")
+    cat = fields.get("category")
+    supp_items = fields.get("supported_items")
+    if not comm:
+        comm, cat, supp_items = infer_commodity_and_category(text, supplier_name=fields["supplier_name"])
+
     return SupplierCreateRequest(
-        supplier_name=supplier_name,
-        category=category,
-        commodity=commodity,
-        supported_items=supported_items,
-        halal_certified=halal_certified,
-        halal_cert_number=halal_cert_number,
-        unit_price_idr=price,
-        daily_capacity_kg=capacity,
-        lead_time_hours=lead_time,
-        distance_km=distance,
+        supplier_name=str(fields["supplier_name"]).strip(),
+        category=cat or "PROTEIN",
+        commodity=comm or "PROTEIN_LAINNYA",
+        supported_items=supp_items or ["ITEM-CUSTOM-01"],
+        halal_certified=bool(fields.get("halal_certified", True)),
+        halal_cert_number=fields.get("halal_cert_number") or "Tercatat BPJPH",
+        unit_price_idr=float(fields["unit_price_idr"]),
+        daily_capacity_kg=float(fields["daily_capacity_kg"]),
+        lead_time_hours=float(fields["lead_time_hours"]),
+        distance_km=float(fields.get("distance_km") or 15.0),
         reliability_rating=85.0,
     )

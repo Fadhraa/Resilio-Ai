@@ -21,16 +21,22 @@ body {
 }
 
 /* Antislop R-39: Explicit cursor affordances on interactive elements */
-button:not(:disabled), a, [role="button"]:not([aria-disabled="true"]) {
+button:not(:disabled),
+a,
+[role="button"]:not([aria-disabled="true"]) {
   cursor: pointer;
 }
 
-button:disabled, [role="button"][aria-disabled="true"] {
+button:disabled,
+[role="button"][aria-disabled="true"] {
   cursor: not-allowed;
 }
 
 /* Antislop R-32: Visible focus indicators */
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }

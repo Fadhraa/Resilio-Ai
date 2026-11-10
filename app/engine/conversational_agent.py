@@ -133,6 +133,7 @@ class ConversationalAgentManager:
                 intent=response.intent.value if hasattr(response.intent, "value") else str(response.intent),
                 action_required=response.action_required.value if hasattr(response.action_required, "value") else str(response.action_required),
                 preview_data=response.preview_data,
+                execution_trace=response.execution_trace,
             )
         except Exception:
             pass

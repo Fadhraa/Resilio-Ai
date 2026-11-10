@@ -91,6 +91,11 @@ def decide_action(
         ]):
             return {"action": "CONFIRM_CRUD", "parameters": {}}
 
+    # 1.5 Pembatalan draf rekanan yang sedang dilengkapi (pending_supplier_draft)
+    if session.get("pending_supplier_draft"):
+        if any(w in msg_lower for w in ["batal", "jangan", "batalkan", "tidak jadi", "cancel", "tunda", "gak jadi"]):
+            return {"action": "CANCEL_CRUD", "parameters": {}}
+
     # 2. Konfirmasi klarifikasi saat pending_clarification aktif
     if has_pending and (any(w in msg_lower for w in ["ya", "iya", "betul", "benar", "itu"]) or any(s.lower() in msg_lower for s in session["pending_clarification"].get("suggestions", []))):
         return {"action": "CONFIRM_CLARIFICATION", "parameters": {}}
@@ -124,24 +129,24 @@ def decide_action(
                 "Tugasmu: Analisis pesan dari Kepala SPPG secara semantik dan ekstrak seluruh parameter yang dibutuhkan ke format JSON.\n\n"
                 f"Konteks Sesi Saat Ini:\n"
                 f"- Ada draf CRUD / PO pending menunggu keputusan Kepala: {'YA (' + str(session['pending_crud'].get('type', '')) + ')' if has_pending_crud else 'TIDAK'}\n"
+                f"- Ada draf pendaftaran rekanan belum lengkap (menunggu data operasional dari Kepala): {'YA (' + str(session.get('pending_supplier_draft', {}).get('supplier_name', '')) + ')' if session.get('pending_supplier_draft') else 'TIDAK'}\n"
                 f"- Ada draf rencana pengadaan menu aktif: {'YA (' + str(session.get('procurement_plan', {}).get('target_portions', '')) + ' porsi)' if session.get('procurement_plan') else 'TIDAK'}\n"
                 f"- Ada klarifikasi supplier pending: {'YA' if has_pending else 'TIDAK'}\n"
                 f"- Ada rekomendasi mitigasi aktif: {'YA' if has_rec else 'TIDAK'}\n\n"
                 "Daftar Aksi & Spesifikasi Parameter:\n"
                 "1. 'CONFIRM_CRUD': Kepala SPPG menyetujui/mengonfirmasi draf aksi CRUD pending (contoh: 'setuju', 'simpan', 'ya daftarkan', 'oke proses', 'lanjutkan').\n"
                 "2. 'CANCEL_CRUD': Kepala SPPG membatalkan draf aksi CRUD pending (contoh: 'batal', 'jangan simpan', 'batalkan', 'tidak jadi').\n"
-                "3. 'REGISTER_SUPPLIER': Kepala SPPG ingin menambahkan/mendaftarkan supplier baru "
-                "(contoh: 'daftarkan supplier baru CV Berkah tahu, tahu Rp 18.000, kapasitas 200kg, halal ID3211', 'tambah mitra PT Jamur Makmur, jamur tiram 15rb, kapasitas 100kg').\n"
+                "3. 'REGISTER_SUPPLIER': Kepala SPPG ingin menambahkan/mendaftarkan supplier baru ATAU sedang melengkapi data rekanan yang kurang (seperti waktu kirim/lead time, harga, kapasitas, dll).\n"
                 "   {\n"
                 "     \"supplier_name\": string atau null,\n"
                 "     \"commodity\": string atau null,\n"
-                "     \"category\": 'PROTEIN' | 'STAPLE' | 'VEGETABLE' | 'OTHER',\n"
+                "     \"category\": 'PROTEIN' | 'STAPLE' | 'VEGETABLE' | 'OTHER' atau null,\n"
                 "     \"unit_price_idr\": float atau null,\n"
                 "     \"daily_capacity_kg\": float atau null,\n"
-                "     \"halal_certified\": boolean,\n"
+                "     \"halal_certified\": boolean atau null,\n"
                 "     \"halal_cert_number\": string atau null,\n"
-                "     \"lead_time_hours\": float,\n"
-                "     \"distance_km\": float\n"
+                "     \"lead_time_hours\": float atau null (PENTING: HANYA isi jika disebutkan secara eksplisit dalam pesan. JANGAN pernah menebak atau mengasumsikan nilai jika tidak ada di pesan, biarkan null),\n"
+                "     \"distance_km\": float atau null\n"
                 "   }\n"
                 "4. 'UPDATE_SUPPLIER': Kepala SPPG ingin mengubah data supplier (harga, kapasitas, durasi kirim).\n"
                 "   {\n"
@@ -267,6 +272,13 @@ def fallback_decide_action(user_message: str, session: Dict[str, Any]) -> Dict[s
             "lanjut", "lanjutkan", "benar", "betul", "confirm", "yes", "eksekusi", "delete", "terbitkan"
         ]):
             return {"action": "CONFIRM_CRUD", "parameters": {}}
+
+    # 1.5 Melengkapi data draf rekanan yang masih kurang (pending_supplier_draft)
+    if session.get("pending_supplier_draft"):
+        if any(w in msg_lower for w in ["batal", "jangan", "batalkan", "tidak jadi", "cancel", "tunda", "gak jadi"]):
+            return {"action": "CANCEL_CRUD", "parameters": {}}
+        if not has_incident and not any(w in msg_lower for w in ["stok", "freezer", "gudang", "ruang pendingin", "bisa apa"]):
+            return {"action": "REGISTER_SUPPLIER", "parameters": {}}
 
     # 2. Approval PO (Mitigasi Darurat atau Draf Perencanaan Pengadaan)
     if (session.get("current_recommendation") or session.get("procurement_plan")) and any(
